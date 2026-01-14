@@ -50,8 +50,8 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({ isOpen, onClose, darkM
     <div className={`fixed bottom-6 right-6 w-full max-w-[90vw] sm:w-[450px] max-h-[600px] h-[80vh] rounded-3xl shadow-2xl border flex flex-col z-[100] animate-in slide-in-from-bottom-6 duration-300 ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
       <div className={`p-4 text-white rounded-t-3xl flex items-center justify-between transition-colors ${darkMode ? 'bg-slate-900' : 'bg-[#1D265A]'}`}>
         <div className="flex items-center gap-3">
-          <div className="bg-white/20 p-1.5 rounded-xl backdrop-blur-md">
-            <img src="./logo.png" alt="GyanSync Logo" className="w-6 h-6 object-contain brightness-0 invert" />
+          <div className="bg-white/20 p-1.5 rounded-xl backdrop-blur-md group">
+            <img src="/logo.png" alt="GyanSync Logo" className="w-10 h-10 object-contain brightness-0 invert group-hover:scale-125 transition-transform duration-200" />
           </div>
           <div>
             <h3 className="text-sm font-bold">GyanSync Assistant</h3>

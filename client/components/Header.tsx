@@ -31,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, isMobileMenu
           onClick={() => onNavigate(isAdmin ? 'admin' : 'dashboard')}
         >
           <div className="bg-white p-1 rounded-xl shadow-lg group-hover:scale-105 transition-transform">
-            <img src="./logo.png" alt="GyanSync Logo" className="w-8 h-8 object-contain" />
+            <img src="/logo.png" alt="GyanSync Logo" className="w-8 h-8 object-contain" />
           </div>
           <h1 className="text-xl md:text-2xl font-bold tracking-tight flex">
             <span className={darkMode ? "text-slate-100" : "text-[#1D265A]"}>Gyan</span>

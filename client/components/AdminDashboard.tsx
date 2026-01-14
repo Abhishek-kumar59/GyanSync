@@ -97,7 +97,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
 
         <div className={`lg:col-span-4 p-8 rounded-[2.5rem] border shadow-sm flex flex-col items-center justify-center text-center ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
           <div className="p-2 rounded-[1.5rem] bg-white shadow-lg mb-6">
-            <img src="./logo.png" alt="GyanSync Admin" className="w-16 h-16 object-contain" />
+            <img src="/logo.png" alt="GyanSync Admin" className="w-16 h-16 object-contain" />
           </div>
           <h3 className={`text-2xl font-black mb-2 ${darkMode ? 'text-white' : 'text-[#1D265A]'}`}>Data Security</h3>
           <p className="text-slate-500 text-sm font-medium mb-8">All GyanSync passwords are SHA-256 encrypted. Private information is handled with zero-knowledge protocols.</p>

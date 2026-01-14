@@ -144,7 +144,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
                     </div>
                     <div>
                       <p className={`text-xs font-bold uppercase tracking-tighter ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Joined</p>
-                      <p className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>October 2024</p>
+                      <p className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>Jan 14,2026</p>
                     </div>
                   </div>
                 </div>

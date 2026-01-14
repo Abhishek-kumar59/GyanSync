@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { DailyGoal } from './components/DailyGoal';
@@ -15,8 +16,8 @@ import { MyTasksView } from './components/MyTasksView';
 import { ScheduleView } from './components/ScheduleView';
 import { StatisticsView } from './components/StatisticsView';
 import { AdminDashboard } from './components/AdminDashboard';
-import { Task, StudySlot, Folder, FileAsset, UserProfile, Student } from './types';
-import { X } from 'lucide-react';
+import { authService, User } from './services/authService';
+import { Task, StudySlot, Folder, UserProfile, Student, FileAsset } from './types';
 
 const INITIAL_TASKS: Task[] = [
   { id: '1', title: 'Complete Calculus III Assignment', completed: false, priority: 'high', category: 'Math' },
@@ -61,11 +62,10 @@ const INITIAL_STUDENTS: Student[] = [
 export type AppView = 'dashboard' | 'profile' | 'settings' | 'tasks' | 'schedule' | 'statistics' | 'admin';
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('isAuth') === 'true');
-  const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('isAdmin') === 'true');
-  const [currentView, setCurrentView] = useState<AppView>(() => {
-    return (localStorage.getItem('isAdmin') === 'true') ? 'admin' : 'dashboard';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('token'));
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentView, setCurrentView] = useState<AppView>('dashboard');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
@@ -131,14 +131,55 @@ const App: React.FC = () => {
     }
   }, [darkMode]);
 
-  const handleLogin = (asAdmin: boolean = false) => {
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      authService.getCurrentUser()
+        .then(user => {
+          setCurrentUser(user);
+          setIsAdmin(user.isAdmin);
+          setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
+          // Set userProfile from user data
+          setUserProfile({
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
+            banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
+            major: user.major || 'Computer Science',
+            location: user.location || 'Unknown',
+            streak: user.streak || 0,
+            bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
+          });
+        })
+        .catch(() => {
+          localStorage.removeItem('token');
+          setIsAuthenticated(false);
+        });
+    }
+  }, []);
+
+  const handleLogin = (user: User, asAdmin: boolean = false) => {
     setIsAuthenticated(true);
-    setIsAdmin(asAdmin);
-    setCurrentView(asAdmin ? 'admin' : 'dashboard');
+    setCurrentUser(user);
+    setIsAdmin(user.isAdmin);
+    setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
+    // Set userProfile from user data
+    setUserProfile({
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
+      banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
+      major: user.major || 'Computer Science',
+      location: user.location || 'Unknown',
+      streak: user.streak || 0,
+      bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
+    });
   };
   
   const handleLogout = () => {
+    authService.logout();
     setIsAuthenticated(false);
+    setCurrentUser(null);
     setIsAdmin(false);
     setShowLogoutModal(false);
     setCurrentView('dashboard');
@@ -157,8 +198,14 @@ const App: React.FC = () => {
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 
-  const handleUpdateProfile = (updates: Partial<UserProfile>) => {
-    setUserProfile(prev => ({ ...prev, ...updates }));
+  const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
+    try {
+      const updatedUser = await authService.updateProfile(updates);
+      setUserProfile(prev => ({ ...prev, ...updates }));
+      setCurrentUser(updatedUser);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
   };
 
   const handleAddSlot = (newSlot: Omit<StudySlot, 'id'>) => {
@@ -216,7 +263,16 @@ const App: React.FC = () => {
         isMobileMenuOpen={isMobileMenuOpen} 
         onNavigate={setCurrentView}
         onLogoutClick={() => setShowLogoutModal(true)}
-        userProfile={userProfile}
+        userProfile={currentUser ? {
+          name: currentUser.name,
+          email: currentUser.email,
+          avatar: 'https://picsum.photos/seed/' + currentUser.name.toLowerCase().replace(' ', '') + '/150/150',
+          banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
+          major: 'Computer Science',
+          location: 'Unknown',
+          streak: 0,
+          bio: ''
+        } : INITIAL_USER_PROFILE}
         darkMode={darkMode}
         isAdmin={isAdmin}
       />

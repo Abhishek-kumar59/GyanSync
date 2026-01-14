@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
-import { Mail, Lock, User, ArrowRight, ShieldCheck, Github, ShieldAlert } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowRight, ShieldCheck, Github, ShieldAlert } from 'lucide-react';
+import { authService, User } from '../services/authService';
 
 interface AuthViewProps {
-  onLogin: (asAdmin?: boolean) => void;
+  onLogin: (user: User, asAdmin?: boolean) => void;
 }
 
 type AuthMode = 'login' | 'signup' | 'forgot' | 'admin';
@@ -12,10 +13,30 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(mode === 'admin');
+    setLoading(true);
+    setError('');
+
+    try {
+      let response;
+      if (mode === 'signup') {
+        response = await authService.signup(name, email, password);
+      } else {
+        response = await authService.login(email, password);
+      }
+
+      localStorage.setItem('token', response.token);
+      onLogin(response.user, mode === 'admin');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -27,7 +48,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
       <div className="w-full max-w-lg z-10 animate-in fade-in zoom-in-95 duration-500">
         <div className="text-center mb-8">
           <div className="inline-flex p-4 bg-white rounded-[2rem] shadow-2xl mb-6">
-            <img src="./logo.png" alt="GyanSync Logo" className="w-16 h-16 object-contain" />
+            <img src="/logo.png" alt="GyanSync Logo" className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">
             {mode === 'login' ? 'Welcome to GyanSync' : mode === 'signup' ? 'Create GyanSync Account' : mode === 'admin' ? 'GyanSync Admin' : 'Recover Password'}
@@ -38,14 +59,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
         </div>
 
         <div className="glass border border-white p-8 rounded-[2.5rem] shadow-2xl shadow-slate-200/50">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm">
+              {error}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-5">
             {mode === 'signup' && (
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
                 <div className="relative">
-                  <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <UserIcon size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input 
                     type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     placeholder="Alex Johnson" 
                     required
                     className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-[#F48B29] focus:border-transparent transition-all"
@@ -99,10 +127,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLogin }) => {
 
             <button 
               type="submit" 
-              className={`w-full font-bold py-4 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 ${mode === 'admin' ? 'bg-[#1D265A] shadow-slate-200' : 'bg-[#1D265A] hover:bg-[#2A367A] shadow-[#1D265A]/10'} text-white`}
+              disabled={loading}
+              className={`w-full font-bold py-4 rounded-2xl shadow-xl flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed ${mode === 'admin' ? 'bg-[#1D265A] shadow-slate-200' : 'bg-[#1D265A] hover:bg-[#2A367A] shadow-[#1D265A]/10'} text-white`}
             >
-              {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Get Started' : mode === 'admin' ? 'Authorize Access' : 'Send Recovery Link'}
-              <ArrowRight size={20} />
+              {loading ? 'Processing...' : (mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Get Started' : mode === 'admin' ? 'Authorize Access' : 'Send Recovery Link')}
+              {!loading && <ArrowRight size={20} />}
             </button>
           </form>
 
