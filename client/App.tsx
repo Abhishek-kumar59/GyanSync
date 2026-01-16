@@ -49,6 +49,7 @@ const INITIAL_USER_PROFILE: UserProfile = {
   banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
   major: 'Computer Science',
   location: 'San Francisco, CA',
+  joinDate: '2024-10-15',
   streak: 21,
   bio: 'Computer Science student passionate about AI and distributed systems. I love optimizing my study flow and tackling complex algorithms during my late-night coding sessions.'
 };
@@ -69,15 +70,8 @@ const App: React.FC = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : INITIAL_TASKS;
-  });
-
-  const [slots, setSlots] = useState<StudySlot[]>(() => {
-    const saved = localStorage.getItem('slots');
-    return saved ? JSON.parse(saved) : INITIAL_SLOTS;
-  });
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [slots, setSlots] = useState<StudySlot[]>([]);
 
   const [folders, setFolders] = useState<Folder[]>(() => {
     const saved = localStorage.getItem('folders');
@@ -96,14 +90,6 @@ const App: React.FC = () => {
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    localStorage.setItem('slots', JSON.stringify(slots));
-  }, [slots]);
 
   useEffect(() => {
     localStorage.setItem('folders', JSON.stringify(folders));
@@ -140,16 +126,20 @@ const App: React.FC = () => {
           setIsAdmin(user.isAdmin);
           setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
           // Set userProfile from user data
-          setUserProfile({
-            name: user.name,
-            email: user.email,
-            avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
-            banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
-            major: user.major || 'Computer Science',
-            location: user.location || 'Unknown',
-            streak: user.streak || 0,
-            bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
-          });
+
+          // setUserProfile({
+          //   name: user.name,
+          //   email: user.email,
+          //   avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
+          //   banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
+          //   major: user.major || 'Computer Science',
+          //   location: user.location || 'Unknown',
+          //   streak: user.streak || 0,
+          //   bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
+          // });
+          // Fetch user data
+          authService.getTasks().then(response => setTasks(response.tasks));
+          authService.getSlots().then(response => setSlots(response.slots));
         })
         .catch(() => {
           localStorage.removeItem('token');
@@ -164,16 +154,21 @@ const App: React.FC = () => {
     setIsAdmin(user.isAdmin);
     setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
     // Set userProfile from user data
-    setUserProfile({
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
-      banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
-      major: user.major || 'Computer Science',
-      location: user.location || 'Unknown',
-      streak: user.streak || 0,
-      bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
-    });
+
+    // setUserProfile({
+    //   name: user.name,
+    //   email: user.email,
+    //   avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
+    //   banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
+    //   major: user.major || 'Computer Science',
+    //   location: user.location || 'Unknown',
+    //   streak: user.streak || 0,
+    //   bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
+    // });
+
+    // Fetch user data
+    authService.getTasks().then(response => setTasks(response.tasks)).catch(console.error);
+    authService.getSlots().then(response => setSlots(response.slots)).catch(console.error);
   };
   
   const handleLogout = () => {
@@ -183,19 +178,38 @@ const App: React.FC = () => {
     setIsAdmin(false);
     setShowLogoutModal(false);
     setCurrentView('dashboard');
+    setTasks([]);
+    setSlots([]);
   };
 
-  const handleAddTask = (title: string, priority: Task['priority'], category: string = 'General') => {
-    const newTask: Task = { id: Date.now().toString(), title, completed: false, priority, category };
-    setTasks(prev => [newTask, ...prev]);
+  const handleAddTask = async (title: string, priority: Task['priority'], category: string = 'General') => {
+    try {
+      const response = await authService.createTask({ title, priority, category });
+      setTasks(prev => [response.task, ...prev]);
+    } catch (error) {
+      console.error('Failed to add task:', error);
+    }
   };
 
-  const handleToggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const handleToggleTask = async (id: string) => {
+    try {
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        const response = await authService.updateTask(id, { completed: !task.completed });
+        setTasks(prev => prev.map(t => t.id === id ? response.task : t));
+      }
+    } catch (error) {
+      console.error('Failed to toggle task:', error);
+    }
   };
 
-  const handleDeleteTask = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await authService.deleteTask(id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
   };
 
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
@@ -208,13 +222,22 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddSlot = (newSlot: Omit<StudySlot, 'id'>) => {
-    const slot: StudySlot = { ...newSlot, id: Date.now().toString() };
-    setSlots(prev => [...prev, slot]);
+  const handleAddSlot = async (newSlot: Omit<StudySlot, 'id'>) => {
+    try {
+      const response = await authService.createSlot(newSlot);
+      setSlots(prev => [...prev, response.slot]);
+    } catch (error) {
+      console.error('Failed to add slot:', error);
+    }
   };
 
-  const handleDeleteSlot = (id: string) => {
-    setSlots(prev => prev.filter(s => s.id !== id));
+  const handleDeleteSlot = async (id: string) => {
+    try {
+      await authService.deleteSlot(id);
+      setSlots(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      console.error('Failed to delete slot:', error);
+    }
   };
 
   const handleAddFolder = (name: string) => {
@@ -266,12 +289,13 @@ const App: React.FC = () => {
         userProfile={currentUser ? {
           name: currentUser.name,
           email: currentUser.email,
-          avatar: 'https://picsum.photos/seed/' + currentUser.name.toLowerCase().replace(' ', '') + '/150/150',
-          banner: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
-          major: 'Computer Science',
-          location: 'Unknown',
-          streak: 0,
-          bio: ''
+          avatar: currentUser.avatar || 'https://picsum.photos/seed/' + currentUser.name.toLowerCase().replace(' ', '') + '/150/150',
+          banner: currentUser.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
+          major: currentUser.major || 'Computer Science',
+          location: currentUser.location || 'Unknown',
+          streak: currentUser.streak || 0,
+          joinDate: currentUser.joinDate || '',
+          bio: currentUser.bio || ''
         } : INITIAL_USER_PROFILE}
         darkMode={darkMode}
         isAdmin={isAdmin}

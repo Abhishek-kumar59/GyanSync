@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { UserProfile } from '../types';
+import { UserProfile, Task, StudySlot } from '../types';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -14,6 +14,7 @@ export interface User {
   location?: string;
   streak?: number;
   bio?: string;
+  joinDate?: string;
 }
 
 export interface AuthResponse {
@@ -54,5 +55,59 @@ export const authService = {
 
   getToken() {
     return localStorage.getItem('token');
+  },
+
+  async getTasks(): Promise<{ tasks: Task[] }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/tasks`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async createTask(taskData: { title: string; priority: Task['priority']; category: string }): Promise<{ task: Task }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/tasks`, taskData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async updateTask(id: string, updates: Partial<Task>): Promise<{ task: Task }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.put(`${API_URL}/tasks/${id}`, updates, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async deleteTask(id: string): Promise<void> {
+    const token = localStorage.getItem('token');
+    await axios.delete(`${API_URL}/tasks/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  },
+
+  async getSlots(): Promise<{ slots: StudySlot[] }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/slots`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async createSlot(slotData: Omit<StudySlot, 'id'>): Promise<{ slot: StudySlot }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/slots`, slotData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async deleteSlot(id: string): Promise<void> {
+    const token = localStorage.getItem('token');
+    await axios.delete(`${API_URL}/slots/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
   }
 };

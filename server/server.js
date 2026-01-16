@@ -26,6 +26,8 @@ app.get('/', (req, res) => {
 
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
+const Task = require('./models/Task');
+const StudySlot = require('./models/StudySlot');
 
 // User authentication routes
 app.post('/api/auth/signup', async (req, res) => {
@@ -99,15 +101,131 @@ app.put('/api/auth/profile', auth, async (req, res) => {
   }
 });
 
-// Tasks API (placeholder)
-app.get('/api/tasks', (req, res) => {
-  // TODO: Fetch tasks from DB
-  res.json({ tasks: [] });
+// Tasks API
+app.get('/api/tasks', auth, async (req, res) => {
+  try {
+    const tasks = await Task.find({ userId: req.user.id });
+    const transformedTasks = tasks.map(task => ({
+      id: task._id.toString(),
+      title: task.title,
+      completed: task.completed,
+      priority: task.priority,
+      category: task.category
+    }));
+    res.json({ tasks: transformedTasks });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
-app.post('/api/tasks', (req, res) => {
-  // TODO: Save task to DB
-  res.json({ message: 'Task created' });
+app.post('/api/tasks', auth, async (req, res) => {
+  try {
+    const { title, priority, category } = req.body;
+    const task = new Task({
+      userId: req.user.id,
+      title,
+      completed: false,
+      priority: priority || 'medium',
+      category: category || 'General'
+    });
+    await task.save();
+    const transformedTask = {
+      id: task._id.toString(),
+      title: task.title,
+      completed: task.completed,
+      priority: task.priority,
+      category: task.category
+    };
+    res.json({ task: transformedTask });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.put('/api/tasks/:id', auth, async (req, res) => {
+  try {
+    const { completed } = req.body;
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      { completed },
+      { new: true }
+    );
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+    const transformedTask = {
+      id: task._id.toString(),
+      title: task.title,
+      completed: task.completed,
+      priority: task.priority,
+      category: task.category
+    };
+    res.json({ task: transformedTask });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.delete('/api/tasks/:id', auth, async (req, res) => {
+  try {
+    const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+    res.json({ message: 'Task deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Study Slots API
+app.get('/api/slots', auth, async (req, res) => {
+  try {
+    const slots = await StudySlot.find({ userId: req.user.id });
+    const transformedSlots = slots.map(slot => ({
+      id: slot._id.toString(),
+      day: slot.day,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      subject: slot.subject,
+      color: slot.color
+    }));
+    res.json({ slots: transformedSlots });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.post('/api/slots', auth, async (req, res) => {
+  try {
+    const { day, startTime, endTime, subject, color } = req.body;
+    const slot = new StudySlot({
+      userId: req.user.id,
+      day: day || 'Today',
+      startTime,
+      endTime,
+      subject,
+      color: color || 'indigo'
+    });
+    await slot.save();
+    const transformedSlot = {
+      id: slot._id.toString(),
+      day: slot.day,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      subject: slot.subject,
+      color: slot.color
+    };
+    res.json({ slot: transformedSlot });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.delete('/api/slots/:id', auth, async (req, res) => {
+  try {
+    const slot = await StudySlot.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!slot) return res.status(404).json({ message: 'Slot not found' });
+    res.json({ message: 'Slot deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // Gemini API proxy (for secure API calls)

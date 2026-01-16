@@ -14,8 +14,9 @@ export const getStudyAdvice = async (history: { role: 'user' | 'model', parts: {
         systemInstruction: "You are a helpful study assistant. Provide concise, encouraging academic advice, explain difficult concepts, and help students organize their study time. Keep responses friendly and motivating.",
       }
     });
+
     // Accessing .text property directly
-    return response.text || "I'm sorry, I couldn't process that.";
+    return  response.text || "I'm sorry, I couldn't process that.";
   } catch (error) {
     console.error("Gemini API Error:", error);
     return "The study assistant is currently taking a break. Please try again later.";

@@ -3,6 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Send, Bot, User, Sparkles } from 'lucide-react';
 import { getStudyAdvice } from '../services/geminiService';
 import { ChatMessage } from '../types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatOverlayProps {
   isOpen: boolean;
@@ -77,7 +79,28 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({ isOpen, onClose, darkM
                 ? 'bg-[#1D265A] text-white rounded-tr-none shadow-md' 
                 : (darkMode ? 'bg-slate-800 text-slate-200 border border-slate-700 shadow-sm rounded-tl-none' : 'bg-white text-slate-700 border border-slate-100 shadow-sm rounded-tl-none')
               }`}>
-                {msg.content}
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal pl-4 my-2" {...props} />,
+                    li: ({node, ...props}) => <li className="my-1" {...props} />,
+                    p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                    h1: ({node, ...props}) => <h1 className="text-lg font-bold my-2" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-base font-bold my-2" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-sm font-bold my-2" {...props} />,
+                    code: ({node, ...props}) => <code className="bg-black/10 dark:bg-white/10 rounded px-1 py-0.5 font-mono text-xs" {...props} />,
+                    table: ({node, ...props}) => <div className="overflow-x-auto my-2"><table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 border rounded-lg" {...props} /></div>,
+                    thead: ({node, ...props}) => <thead className="bg-slate-50 dark:bg-slate-800" {...props} />,
+                    th: ({node, ...props}) => <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider" {...props} />,
+                    tbody: ({node, ...props}) => <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700" {...props} />,
+                    tr: ({node, ...props}) => <tr {...props} />,
+                    td: ({node, ...props}) => <td className="px-3 py-2 whitespace-nowrap text-sm border-r last:border-r-0 border-slate-200 dark:border-slate-700" {...props} />,
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
               </div>
             </div>
           </div>

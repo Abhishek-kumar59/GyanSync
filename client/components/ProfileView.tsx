@@ -1,7 +1,11 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, MapPin, Calendar, Mail, Award, Edit3, BookOpen, Check, X, Save, Upload, MapPinned, GraduationCap, FileText } from 'lucide-react';
 import { UserProfile } from '../types';
+import { format } from "date-fns";
+
+
+
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -24,6 +28,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
       reader.readAsDataURL(file);
     }
   };
+
+  
+
 
   return (
     <div className="max-w-5xl mx-auto py-10 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -144,7 +151,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
                     </div>
                     <div>
                       <p className={`text-xs font-bold uppercase tracking-tighter ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Joined</p>
-                      <p className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>Jan 14,2026</p>
+                      <p className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{profile?.joinDate || profile?.createdAt ? format(new Date(profile.joinDate || profile.createdAt), "MMMM d, yyyy") : "—"}</p>
+                      {/* <p>{console.log(profile)}</p> */}
                     </div>
                   </div>
                 </div>
@@ -191,7 +199,8 @@ const UpdateProfileModal: React.FC<UpdateProfileModalProps> = ({ profile, onClos
     name: profile.name,
     major: profile.major,
     location: profile.location,
-    bio: profile.bio
+    bio: profile.bio,
+    joinDate: profile.joinDate
   });
 
   const handleSubmit = (e: React.FormEvent) => {

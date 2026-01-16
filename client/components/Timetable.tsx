@@ -195,7 +195,7 @@ export const Timetable: React.FC<TimetableProps> = ({ slots, onAddSlot, onDelete
           <AlertCircle size={18} />
         </div>
         <p className={`text-xs font-medium italic ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-          Tip: You can now enter any specific time for your sessions, making it perfect for varied college class lengths and labs.
+          Tip: You can enter any specific time for your sessions, making it perfect for varied college class lengths and labs.
         </p>
       </div>
     </div>

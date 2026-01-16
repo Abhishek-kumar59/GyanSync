@@ -39,6 +39,9 @@ export interface UserProfile {
   location: string;
   streak: number;
   bio: string;
+  joinDate: string;
+  createdAt?: string;
+  
 }
 
 export interface Student extends UserProfile {
