@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, MapPin, Calendar, Mail, Award, Edit3, BookOpen, Check, X, Save, Upload, MapPinned, GraduationCap, FileText } from 'lucide-react';
-import { UserProfile } from '../types';
+import { UserProfile, Task } from '../types';
 import { format } from "date-fns";
 
 
@@ -9,23 +9,47 @@ import { format } from "date-fns";
 
 interface ProfileViewProps {
   profile: UserProfile;
+  tasks?: Task[];
   onUpdateProfile: (updates: Partial<UserProfile>) => void;
   darkMode: boolean;
 }
 
-export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfile, darkMode }) => {
+export const ProfileView: React.FC<ProfileViewProps> = ({ profile, tasks = [], onUpdateProfile, darkMode }) => {
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  // Calculate statistics from real data
+  const completedTasks = tasks.filter(t => t.completed).length;
+  const totalTasks = tasks.length;
+  const studyHours = Math.floor((profile.totalStudyMinutes || 0) / 60);
+  const studyMinutesRemainder = (profile.totalStudyMinutes || 0) % 60;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'avatar' | 'banner') => {
     const file = e.target.files?.[0];
     if (file) {
+      console.log(`File selected for ${field}:`, file.name);
+      setIsUpdating(true);
       const reader = new FileReader();
       reader.onloadend = () => {
-        onUpdateProfile({ [field]: reader.result as string });
+        console.log(`Converting ${field} to base64...`);
+        const base64String = reader.result as string;
+        console.log(`Calling onUpdateProfile with ${field}:`, base64String.substring(0, 50) + '...');
+        onUpdateProfile({ [field]: base64String });
+        // Reset updating state after a brief delay to show the update
+        setTimeout(() => {
+          console.log(`${field} update completed`);
+          setIsUpdating(false);
+        }, 500);
+      };
+      reader.onerror = (error) => {
+        console.error(`Error reading file for ${field}:`, error);
+        setIsUpdating(false);
       };
       reader.readAsDataURL(file);
+    } else {
+      console.log('No file selected');
     }
   };
 
@@ -40,14 +64,26 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
           <img 
             src={profile.banner} 
             alt="Banner" 
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            className={`w-full h-full object-cover transition-all duration-700 ${isUpdating ? 'opacity-50' : 'group-hover:scale-105'}`}
           />
-          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors" />
+          <div className={`absolute inset-0 pointer-events-none transition-colors ${isUpdating ? 'bg-black/40' : 'bg-black/20 group-hover:bg-black/30'}`} />
+          {isUpdating && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-indigo-500"></div>
+            </div>
+          )}
           <button 
-            onClick={() => bannerInputRef.current?.click()}
-            className="absolute bottom-4 right-4 bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl border border-white/30 hover:bg-white/30 transition-all flex items-center gap-2 text-sm font-bold"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Banner button clicked');
+              bannerInputRef.current?.click();
+            }}
+            disabled={isUpdating}
+            className={`absolute bottom-4 right-4 px-4 py-2 rounded-xl border border-white/30 flex items-center gap-2 text-sm font-bold transition-all z-10 ${isUpdating ? 'bg-white/10 text-white/50 cursor-not-allowed' : 'bg-white/20 backdrop-blur-md text-white hover:bg-white/30 cursor-pointer'}`}
           >
-            <Camera size={18} /> Change Banner
+            <Camera size={18} /> {isUpdating ? 'Updating...' : 'Change Banner'}
           </button>
           <input 
             type="file" 
@@ -55,6 +91,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
             className="hidden" 
             accept="image/*" 
             onChange={(e) => handleFileChange(e, 'banner')}
+            disabled={isUpdating}
+            style={{ display: 'none' }}
           />
         </div>
 
@@ -63,12 +101,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
             <div className="relative">
               <img 
                 src={profile.avatar} 
-                className={`w-40 h-40 rounded-[2.5rem] border-8 object-cover shadow-2xl transition-colors ${darkMode ? 'border-slate-800' : 'border-white'}`}
+                className={`w-40 h-40 rounded-[2.5rem] border-8 object-cover shadow-2xl transition-all ${isUpdating ? 'opacity-50' : ''} ${darkMode ? 'border-slate-800' : 'border-white'}`}
                 alt="Avatar"
               />
+              {isUpdating && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-[2rem]">
+                  <div className="animate-spin rounded-full h-10 w-10 border-3 border-indigo-500 border-t-white"></div>
+                </div>
+              )}
               <button 
                 onClick={() => avatarInputRef.current?.click()}
-                className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg border-4 border-white hover:bg-indigo-700 transition-colors"
+                disabled={isUpdating}
+                className={`absolute bottom-0 right-0 text-white p-2.5 rounded-xl shadow-lg border-4 transition-all ${isUpdating ? 'bg-slate-500 border-white/50 cursor-not-allowed' : 'bg-indigo-600 border-white hover:bg-indigo-700'}`}
               >
                 <Edit3 size={16} />
               </button>
@@ -78,6 +122,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
                 className="hidden" 
                 accept="image/*" 
                 onChange={(e) => handleFileChange(e, 'avatar')}
+                disabled={isUpdating}
               />
             </div>
             <div className="flex-1">
@@ -118,14 +163,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
                     <div className="bg-amber-500 p-3 rounded-2xl text-white shadow-lg"><Award size={24} /></div>
                     <div>
                       <p className={`text-base font-bold ${darkMode ? 'text-amber-400' : 'text-amber-900'}`}>Consistency King</p>
-                      <p className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-amber-700'}`}>20 Day Streak</p>
+                      <p className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-amber-700'}`}>{profile.streak || 0} Day Streak</p>
                     </div>
                   </div>
                   <div className={`p-5 rounded-3xl flex items-center gap-5 border transition-colors ${darkMode ? 'bg-slate-700/50 border-slate-600' : 'bg-indigo-50 border-indigo-100'}`}>
                     <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg"><BookOpen size={24} /></div>
                     <div>
                       <p className={`text-base font-bold ${darkMode ? 'text-indigo-400' : 'text-indigo-900'}`}>Study Machine</p>
-                      <p className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-indigo-700'}`}>100 Tasks Done</p>
+                      <p className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-indigo-700'}`}>{completedTasks} Tasks Done</p>
                     </div>
                   </div>
                 </div>
@@ -160,12 +205,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, onUpdateProfi
 
               <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2rem] text-white shadow-2xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000" />
-                <h4 className="text-xs font-bold uppercase tracking-widest opacity-80 mb-2">Academic Rank</h4>
-                <p className="text-4xl font-black">Elite 2%</p>
+                <h4 className="text-xs font-bold uppercase tracking-widest opacity-80 mb-2">Study Hours</h4>
+                <p className="text-4xl font-black">{studyHours}h {studyMinutesRemainder}m</p>
                 <div className="mt-6 w-full bg-white/20 h-2.5 rounded-full overflow-hidden">
-                  <div className="h-full bg-white w-[98%] shadow-lg"></div>
+                  <div className="h-full bg-white w-[45%] shadow-lg"></div>
                 </div>
-                <p className="mt-4 text-xs font-medium opacity-80 italic">You're doing better than 98% of users!</p>
+                <p className="mt-4 text-xs font-medium opacity-80 italic">Total study time invested</p>
               </div>
             </div>
           </div>

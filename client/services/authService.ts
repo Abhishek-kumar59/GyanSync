@@ -15,6 +15,8 @@ export interface User {
   streak?: number;
   bio?: string;
   joinDate?: string;
+  totalStudyMinutes?: number;
+  lastStudyDate?: string;
 }
 
 export interface AuthResponse {
@@ -43,10 +45,16 @@ export const authService = {
 
   async updateProfile(updates: Partial<UserProfile>): Promise<User> {
     const token = localStorage.getItem('token');
-    const response = await axios.put(`${API_URL}/auth/profile`, updates, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data.user;
+    try {
+      const response = await axios.put(`${API_URL}/auth/profile`, updates, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30000,
+      });
+      return response.data.user;
+    } catch (error) {
+      console.error('Update profile error:', error);
+      throw error;
+    }
   },
 
   logout() {
@@ -109,5 +117,149 @@ export const authService = {
     await axios.delete(`${API_URL}/slots/${id}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+  },
+
+  async getFolders(): Promise<{ folders: any[] }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/folders`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async createFolder(folderData: { name: string }): Promise<{ folder: any }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/folders`, folderData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async deleteFolder(id: string): Promise<void> {
+    const token = localStorage.getItem('token');
+    await axios.delete(`${API_URL}/folders/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  },
+
+  async addFile(folderId: string, fileData: { name: string }): Promise<{ folder: any }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/folders/${folderId}/files`, fileData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async uploadFile(folderId: string, file: File): Promise<{ folder: any }> {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await axios.post(`${API_URL}/folders/${folderId}/files`, formData, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+
+  async getFilePreview(folderId: string, fileId: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/folders/${folderId}/files/${fileId}/preview`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async downloadFile(folderId: string, fileId: string, fileName: string): Promise<void> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/folders/${folderId}/files/${fileId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'blob'
+    });
+    
+    // Create blob and trigger download with actual filename
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.parentElement?.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+  async deleteFile(folderId: string, fileId: string): Promise<void> {
+    const token = localStorage.getItem('token');
+    await axios.delete(`${API_URL}/folders/${folderId}/files/${fileId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  },
+
+  async startStudySession(): Promise<{ sessionId: string; startTime: Date }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/study-sessions/start`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async endStudySession(startTime: Date): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/study-sessions/end`, { startTime }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async getStatistics(days: number = 7): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/statistics?days=${days}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async getStudyHours(): Promise<{ totalHours: string; totalMinutes: number }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/study-hours`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  // ===== ADMIN METHODS =====
+  async getAdminUsers(): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/admin/users`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async getAdminStatistics(): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/admin/statistics`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async registerStudent(name: string, email: string, password: string, major: string): Promise<User> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/admin/register-student`, 
+      { name, email, password, major },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data.user;
+  },
+
+  async deleteUser(userId: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await axios.delete(`${API_URL}/admin/users/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
   }
 };

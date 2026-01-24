@@ -2,11 +2,14 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { FolderPlus, FileText, MoreVertical, Search, Plus, Folder as FolderIcon, Trash2, FileUp, AlertTriangle, X } from 'lucide-react';
 import { Folder, FileAsset } from '../types';
+import { FilePreviewModal } from './FilePreviewModal';
+import { authService } from '../services/authService';
 
 interface SubjectFilesProps {
   folders: Folder[];
   onAddFolder: (name: string) => void;
   onAddFile: (folderId: string, name: string) => void;
+  onUpdateFolder: (folderId: string, folder: Folder) => void;
   onDeleteFolder: (id: string) => void;
   onDeleteFile: (folderId: string, fileId: string) => void;
   // Added darkMode prop to fix Type error
@@ -41,12 +44,14 @@ const ConfirmationModal: React.FC<ConfirmModalProps> = ({ title, message, onConf
   </div>
 );
 
-export const SubjectFiles: React.FC<SubjectFilesProps> = ({ folders, onAddFolder, onAddFile, onDeleteFolder, onDeleteFile, darkMode }) => {
+export const SubjectFiles: React.FC<SubjectFilesProps> = ({ folders, onAddFolder, onAddFile, onUpdateFolder, onDeleteFolder, onDeleteFile, darkMode }) => {
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [showAddFolder, setShowAddFolder] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewFile, setPreviewFile] = useState<{ folderId: string; fileId: string; fileName: string; fileType: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Deletion States
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'folder' | 'file', folderId: string, fileId?: string, name: string } | null>(null);
@@ -66,11 +71,23 @@ export const SubjectFiles: React.FC<SubjectFilesProps> = ({ folders, onAddFolder
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activeFolder) {
-      onAddFile(activeFolder, file.name);
-      e.target.value = ''; // Reset input
+      try {
+        setUploading(true);
+        const response = await authService.uploadFile(activeFolder, file);
+        // Use the response which now contains the updated folder with the new file
+        if (response && response.folder) {
+          onUpdateFolder(activeFolder, response.folder);
+        }
+      } catch (error) {
+        console.error('Failed to upload file:', error);
+        alert('Failed to upload file');
+      } finally {
+        setUploading(false);
+        e.target.value = ''; // Reset input
+      }
     }
   };
 
@@ -220,7 +237,11 @@ export const SubjectFiles: React.FC<SubjectFilesProps> = ({ folders, onAddFolder
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayedFiles.map(file => (
-                <div key={file.id} className={`p-4 border rounded-2xl transition-all group cursor-pointer relative ${darkMode ? 'bg-slate-700 border-slate-600 hover:border-indigo-500/50' : 'bg-white border-slate-100 hover:border-indigo-100 hover:shadow-sm'}`}>
+                <div 
+                  key={file.id} 
+                  onDoubleClick={() => setPreviewFile({ folderId: (file as any).folderId || activeFolder || '', fileId: file.id, fileName: file.name, fileType: (file as any).type || 'application/octet-stream' })}
+                  className={`p-4 border rounded-2xl transition-all group cursor-pointer relative ${darkMode ? 'bg-slate-700 border-slate-600 hover:border-indigo-500/50' : 'bg-white border-slate-100 hover:border-indigo-100 hover:shadow-sm'}`}
+                >
                   <div className="flex items-start justify-between mb-3">
                     <div className={`p-2 rounded-lg ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
                       <FileText size={20} />
@@ -269,6 +290,17 @@ export const SubjectFiles: React.FC<SubjectFilesProps> = ({ folders, onAddFolder
           message={`Are you sure you want to delete "${confirmDelete.name}"? This action cannot be undone.`}
           onConfirm={executeDelete}
           onCancel={() => setConfirmDelete(null)}
+          darkMode={darkMode}
+        />
+      )}
+
+      {previewFile && (
+        <FilePreviewModal
+          folderId={previewFile.folderId}
+          fileId={previewFile.fileId}
+          fileName={previewFile.fileName}
+          fileType={previewFile.fileType}
+          onClose={() => setPreviewFile(null)}
           darkMode={darkMode}
         />
       )}

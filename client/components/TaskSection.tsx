@@ -39,7 +39,7 @@ const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ taskTitle, onCo
   </div>
 );
 
-const CATEGORIES = ['General', 'Math', 'CS', 'English', 'Science', 'Exam', 'Research'];
+const CATEGORIES = ['General', 'Assignments', 'Exams', 'Projects'];
 
 export const TaskSection: React.FC<TaskSectionProps> = ({ tasks, onAddTask, onToggleTask, onDeleteTask, darkMode }) => {
   const [newTitle, setNewTitle] = useState('');

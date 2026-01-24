@@ -41,7 +41,8 @@ export interface UserProfile {
   bio: string;
   joinDate: string;
   createdAt?: string;
-  
+  totalStudyMinutes?: number;
+  lastStudyDate?: string;
 }
 
 export interface Student extends UserProfile {

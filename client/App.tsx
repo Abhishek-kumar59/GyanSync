@@ -73,10 +73,8 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [slots, setSlots] = useState<StudySlot[]>([]);
 
-  const [folders, setFolders] = useState<Folder[]>(() => {
-    const saved = localStorage.getItem('folders');
-    return saved ? JSON.parse(saved) : INITIAL_FOLDERS;
-  });
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
 
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('userProfile');
@@ -90,10 +88,6 @@ const App: React.FC = () => {
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem('folders', JSON.stringify(folders));
-  }, [folders]);
 
   useEffect(() => {
     localStorage.setItem('userProfile', JSON.stringify(userProfile));
@@ -126,20 +120,23 @@ const App: React.FC = () => {
           setIsAdmin(user.isAdmin);
           setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
           // Set userProfile from user data
-
-          // setUserProfile({
-          //   name: user.name,
-          //   email: user.email,
-          //   avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
-          //   banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
-          //   major: user.major || 'Computer Science',
-          //   location: user.location || 'Unknown',
-          //   streak: user.streak || 0,
-          //   bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
-          // });
+          setUserProfile({
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar,
+            banner: user.banner,
+            major: user.major || 'Computer Science',
+            location: user.location || 'Unknown',
+            streak: user.streak || 0,
+            bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.',
+            joinDate: user.joinDate,
+            totalStudyMinutes: user.totalStudyMinutes || 0,
+            lastStudyDate: user.lastStudyDate,
+          });
           // Fetch user data
           authService.getTasks().then(response => setTasks(response.tasks));
           authService.getSlots().then(response => setSlots(response.slots));
+          authService.getFolders().then(response => setFolders(response.folders)).catch(console.error);
         })
         .catch(() => {
           localStorage.removeItem('token');
@@ -148,30 +145,83 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleLogin = (user: User, asAdmin: boolean = false) => {
+  // Fetch students/users for admin panel
+  useEffect(() => {
+    if (isAdmin && isAuthenticated) {
+      authService.getAdminUsers()
+        .then(data => {
+          const students = data.users.map((user: any) => ({
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar || `https://picsum.photos/seed/${user.name.split(' ')[0]}/150/150`,
+            banner: user.banner || '',
+            major: user.major || 'Not Set',
+            location: user.location || 'Not Set',
+            streak: user.streak || 0,
+            bio: user.bio || 'GyanSync User',
+            passwordHash: 'hashed',
+            joinDate: user.joinDate || new Date().toISOString().split('T')[0],
+            status: 'active'
+          }));
+          setStudents(students);
+        })
+        .catch(err => console.error('Failed to fetch admin users:', err));
+    }
+  }, [isAdmin, isAuthenticated]);
+
+  const handleLogin = async (user: User, asAdmin: boolean = false) => {
     setIsAuthenticated(true);
     setCurrentUser(user);
     setIsAdmin(user.isAdmin);
     setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
+    
     // Set userProfile from user data
+    setUserProfile({
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      banner: user.banner,
+      major: user.major || 'Computer Science',
+      location: user.location || 'Unknown',
+      streak: user.streak || 0,
+      bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.',
+      joinDate: user.joinDate,
+      totalStudyMinutes: user.totalStudyMinutes || 0,
+      lastStudyDate: user.lastStudyDate,
+    });
 
-    // setUserProfile({
-    //   name: user.name,
-    //   email: user.email,
-    //   avatar: user.avatar || 'https://picsum.photos/seed/' + user.name.toLowerCase().replace(' ', '') + '/150/150',
-    //   banner: user.banner || 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=2070&auto=format&fit=crop',
-    //   major: user.major || 'Computer Science',
-    //   location: user.location || 'Unknown',
-    //   streak: user.streak || 0,
-    //   bio: user.bio || 'Welcome to GyanSync! Update your profile to tell others about yourself.'
-    // });
+    // Streak Logic: Check if streak needs reset on login
+    let currentStreak = user.streak || 0;
+    const lastStudyDate = user.lastStudyDate;
+    
+    if (lastStudyDate) {
+      const last = new Date(lastStudyDate);
+      const today = new Date();
+      // Calculate difference in days ignoring time
+      const diffTime = Math.abs(today.setHours(0,0,0,0) - last.setHours(0,0,0,0));
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+      
+      if (diffDays > 1) {
+        currentStreak = 0;
+        authService.updateProfile({ streak: 0 }).catch(console.error);
+        setUserProfile(prev => ({ ...prev, streak: 0 }));
+      }
+    }
 
     // Fetch user data
     authService.getTasks().then(response => setTasks(response.tasks)).catch(console.error);
     authService.getSlots().then(response => setSlots(response.slots)).catch(console.error);
+    authService.getFolders().then(response => setFolders(response.folders)).catch(console.error);
   };
   
   const handleLogout = () => {
+    // End study session if active
+    if (sessionStartTime) {
+      authService.endStudySession(sessionStartTime).catch(console.error);
+      setSessionStartTime(null);
+    }
+    
     authService.logout();
     setIsAuthenticated(false);
     setCurrentUser(null);
@@ -180,7 +230,50 @@ const App: React.FC = () => {
     setCurrentView('dashboard');
     setTasks([]);
     setSlots([]);
+    setFolders([]);
   };
+
+  // Track study session when on dashboard
+  useEffect(() => {
+    if (isAuthenticated && currentView === 'dashboard' && !sessionStartTime) {
+      // Start a study session when entering dashboard
+      authService.startStudySession()
+        .then(() => {
+          setSessionStartTime(new Date());
+        })
+        .catch(console.error);
+    } else if ((currentView !== 'dashboard' || !isAuthenticated) && sessionStartTime) {
+      // End study session when leaving dashboard
+      authService.endStudySession(sessionStartTime)
+        .then((data) => {
+          setSessionStartTime(null);
+          // Update totalStudyMinutes in profile
+          if (data.totalMinutes !== undefined) {
+            setUserProfile(prev => ({ ...prev, totalStudyMinutes: data.totalMinutes }));
+          }
+        })
+        .catch(console.error);
+    }
+  }, [isAuthenticated, currentView]);
+
+  // Track study session on page close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (sessionStartTime && isAuthenticated) {
+        // Send beacon to track session end (works even on page close)
+        const data = JSON.stringify({ startTime: sessionStartTime });
+        navigator.sendBeacon(
+          'http://localhost:5000/api/study-sessions/end',
+          new Blob([data], { type: 'application/json' })
+        );
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [sessionStartTime, isAuthenticated]);
 
   const handleAddTask = async (title: string, priority: Task['priority'], category: string = 'General') => {
     try {
@@ -197,6 +290,17 @@ const App: React.FC = () => {
       if (task) {
         const response = await authService.updateTask(id, { completed: !task.completed });
         setTasks(prev => prev.map(t => t.id === id ? response.task : t));
+
+        // Refresh user profile to get updated streak from server
+        if (!task.completed) {
+          try {
+            const updatedUser = await authService.getCurrentUser();
+            setUserProfile(prev => ({ ...prev, streak: updatedUser.streak }));
+            setCurrentUser(prev => prev ? { ...prev, streak: updatedUser.streak } : null);
+          } catch (error) {
+            console.error('Failed to refresh user profile:', error);
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to toggle task:', error);
@@ -214,11 +318,33 @@ const App: React.FC = () => {
 
   const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
     try {
+      console.log('handleUpdateProfile called with:', Object.keys(updates));
+      
+      // Update UI immediately
+      setUserProfile(prev => ({ 
+        ...prev, 
+        ...updates,
+      }));
+      
+      console.log('Sending profile update to backend...');
+      // Save to database
       const updatedUser = await authService.updateProfile(updates);
-      setUserProfile(prev => ({ ...prev, ...updates }));
+      console.log('Profile updated successfully:', updatedUser);
+      
+      // Sync with updated user data from server
+      setUserProfile(prev => ({ 
+        ...prev, 
+        ...updates,
+        totalStudyMinutes: updatedUser.totalStudyMinutes || prev.totalStudyMinutes,
+        lastStudyDate: updatedUser.lastStudyDate || prev.lastStudyDate,
+        avatar: updatedUser.avatar || prev.avatar,
+        banner: updatedUser.banner || prev.banner,
+      }));
       setCurrentUser(updatedUser);
     } catch (error) {
       console.error('Failed to update profile:', error);
+      // Revert UI on error
+      setCurrentUser(prev => prev);
     }
   };
 
@@ -240,28 +366,44 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddFolder = (name: string) => {
-    const folder: Folder = { id: Date.now().toString(), name, files: [] };
-    setFolders(prev => [...prev, folder]);
+  const handleAddFolder = async (name: string) => {
+    try {
+      const response = await authService.createFolder({ name });
+      setFolders(prev => [...prev, response.folder]);
+    } catch (error) {
+      console.error('Failed to add folder:', error);
+    }
   };
 
-  const handleDeleteFolder = (id: string) => {
-    setFolders(prev => prev.filter(f => f.id !== id));
+  const handleDeleteFolder = async (id: string) => {
+    try {
+      await authService.deleteFolder(id);
+      setFolders(prev => prev.filter(f => f.id !== id));
+    } catch (error) {
+      console.error('Failed to delete folder:', error);
+    }
   };
 
-  const handleAddFile = (folderId: string, name: string) => {
-    const newFile: FileAsset = {
-      id: Date.now().toString(),
-      name,
-      type: name.split('.').pop() || 'file',
-      size: '2.5 MB',
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    };
-    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, files: [...f.files, newFile] } : f));
+  const handleAddFile = async (folderId: string, name: string) => {
+    try {
+      const response = await authService.addFile(folderId, { name });
+      setFolders(prev => prev.map(f => f.id === folderId ? response.folder : f));
+    } catch (error) {
+      console.error('Failed to add file:', error);
+    }
   };
 
-  const handleDeleteFile = (folderId: string, fileId: string) => {
-    setFolders(prev => prev.map(f => f.id === folderId ? { ...f, files: f.files.filter(file => file.id !== fileId) } : f));
+  const handleUpdateFolder = (folderId: string, updatedFolder: Folder) => {
+    setFolders(prev => prev.map(f => f.id === folderId ? updatedFolder : f));
+  };
+
+  const handleDeleteFile = async (folderId: string, fileId: string) => {
+    try {
+      await authService.deleteFile(folderId, fileId);
+      setFolders(prev => prev.map(f => f.id === folderId ? { ...f, files: f.files.filter(file => file.id !== fileId) } : f));
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+    }
   };
 
   // Student Management (Admin)
@@ -269,8 +411,13 @@ const App: React.FC = () => {
     setStudents(prev => [...prev, student]);
   };
 
-  const handleDeleteStudent = (id: string) => {
-    setStudents(prev => prev.filter(s => s.id !== id));
+  const handleDeleteStudent = async (id: string) => {
+    try {
+      await authService.deleteUser(id);
+      setStudents(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      console.error('Failed to delete student:', error);
+    }
   };
 
   if (!isAuthenticated) {
@@ -381,6 +528,7 @@ const App: React.FC = () => {
                     folders={folders}
                     onAddFolder={handleAddFolder}
                     onAddFile={handleAddFile}
+                    onUpdateFolder={handleUpdateFolder}
                     onDeleteFolder={handleDeleteFolder}
                     onDeleteFile={handleDeleteFile}
                     darkMode={darkMode}
@@ -422,12 +570,13 @@ const App: React.FC = () => {
             <StatisticsView 
               tasks={tasks}
               streak={userProfile.streak}
+              slots={slots}
               darkMode={darkMode}
             />
           )}
 
           {currentView === 'profile' && (
-            <ProfileView profile={userProfile} onUpdateProfile={handleUpdateProfile} darkMode={darkMode} />
+            <ProfileView profile={userProfile} tasks={tasks} onUpdateProfile={handleUpdateProfile} darkMode={darkMode} />
           )}
 
           {currentView === 'settings' && (

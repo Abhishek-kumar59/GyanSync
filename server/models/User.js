@@ -11,6 +11,8 @@ const userSchema = new mongoose.Schema({
   major: { type: String, default: 'Computer Science' },
   location: { type: String, default: 'Unknown' },
   streak: { type: Number, default: 0 },
+  lastStudyDate: { type: String, default: null },
+  totalStudyMinutes: { type: Number, default: 0 },
   bio: { type: String, default: 'Welcome to GyanSync! Update your profile to tell others about yourself.' },
   joinDate: { type: String, default: new Date().toISOString().split('T')[0] },
   createdAt: { type: Date, default: Date.now }

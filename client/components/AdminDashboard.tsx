@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -9,6 +9,7 @@ import {
   Shield, ShieldAlert 
 } from 'lucide-react';
 import { Student } from '../types';
+import { authService } from '../services/authService';
 
 interface AdminDashboardProps {
   students: Student[];
@@ -22,15 +23,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    growth: '+0%',
+    avgStreak: 0
+  });
+  const [growthData, setGrowthData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const stats = useMemo(() => {
-    return {
-      total: students.length,
-      active: students.filter(s => s.status === 'active').length,
-      growth: '+12.5%',
-      avgStreak: Math.round(students.reduce((acc, s) => acc + s.streak, 0) / Math.max(students.length, 1))
+  // Fetch admin statistics on mount
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await authService.getAdminStatistics();
+        setStats({
+          total: data.totalStudents,
+          active: data.activeStudents,
+          growth: data.growthRate,
+          avgStreak: data.avgStreak
+        });
+        setGrowthData(data.monthlyData || []);
+      } catch (error) {
+        console.error('Failed to fetch admin statistics:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
-  }, [students]);
+    fetchStats();
+  }, [students.length]); // Refetch when students change
 
   const filteredStudents = students.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -40,13 +61,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
   const togglePassword = (id: string) => {
     setShowPasswords(prev => ({ ...prev, [id]: !prev[id] }));
   };
-
-  const growthData = [
-    { name: 'Sep', users: 120 },
-    { name: 'Oct', users: 240 },
-    { name: 'Nov', users: 380 },
-    { name: 'Dec', users: 512 },
-  ];
 
   return (
     <div className="p-4 md:p-10 max-w-7xl mx-auto animate-in fade-in duration-500 space-y-10">
@@ -247,25 +261,41 @@ const AdminConfirmationModal = ({ title, message, onConfirm, onCancel, darkMode 
 
 const RegisterStudentModal = ({ onClose, onSave, darkMode }: any) => {
   const [data, setData] = useState({ name: '', email: '', major: '', password: '' });
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newStudent: Student = {
-      id: Date.now().toString(),
-      name: data.name,
-      email: data.email,
-      avatar: `https://picsum.photos/seed/${data.name.split(' ')[0]}/150/150`,
-      banner: '',
-      major: data.major,
-      location: 'Not Set',
-      streak: 0,
-      bio: 'New GyanSync Student',
-      passwordHash: '$2a$12$NEW_USER_HASH_' + btoa(data.password).slice(0, 10),
-      joinDate: new Date().toISOString().split('T')[0],
-      status: 'active'
-    };
-    onSave(newStudent);
-    onClose();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      // Call backend API to register student
+      const newUser = await authService.registerStudent(data.name, data.email, data.password, data.major);
+      
+      // Convert to Student format for display
+      const newStudent: Student = {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        avatar: newUser.avatar || `https://picsum.photos/seed/${newUser.name.split(' ')[0]}/150/150`,
+        banner: newUser.banner || '',
+        major: newUser.major,
+        location: newUser.location || 'Not Set',
+        streak: newUser.streak || 0,
+        bio: newUser.bio || 'Welcome to GyanSync!',
+        passwordHash: 'hashed', // Don't display real hash
+        joinDate: newUser.joinDate || new Date().toISOString().split('T')[0],
+        status: 'active'
+      };
+
+      onSave(newStudent);
+      onClose();
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError(err.response?.data?.message || 'Failed to register student. Email may already be in use.');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -274,45 +304,72 @@ const RegisterStudentModal = ({ onClose, onSave, darkMode }: any) => {
       <div className={`relative w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl transition-colors ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border-slate-100'}`}>
         <div className="flex items-center justify-between mb-8">
           <h3 className={`text-2xl font-black ${darkMode ? 'text-white' : 'text-[#1D265A]'}`}>Register GyanSync Student</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-400"><X size={24} /></button>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-400" disabled={isLoading}><X size={24} /></button>
         </div>
+
+        {error && (
+          <div className="mb-4 p-4 bg-rose-500/10 border border-rose-500 rounded-xl text-rose-500 text-sm font-bold">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
             <input 
               required
-              value={data.name} onChange={e => setData({...data, name: e.target.value})}
-              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}
+              value={data.name} 
+              onChange={e => setData({...data, name: e.target.value})}
+              disabled={isLoading}
+              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'} disabled:opacity-50`}
             />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Academic Email</label>
             <input 
-              required type="email"
-              value={data.email} onChange={e => setData({...data, email: e.target.value})}
-              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}
+              required 
+              type="email"
+              value={data.email} 
+              onChange={e => setData({...data, email: e.target.value})}
+              disabled={isLoading}
+              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'} disabled:opacity-50`}
             />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Major / Course</label>
             <input 
               required
-              value={data.major} onChange={e => setData({...data, major: e.target.value})}
-              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}
+              value={data.major} 
+              onChange={e => setData({...data, major: e.target.value})}
+              disabled={isLoading}
+              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'} disabled:opacity-50`}
             />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Temporary Password</label>
             <input 
-              required type="password"
-              value={data.password} onChange={e => setData({...data, password: e.target.value})}
-              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}
+              required 
+              type="password"
+              value={data.password} 
+              onChange={e => setData({...data, password: e.target.value})}
+              disabled={isLoading}
+              className={`w-full px-4 py-3.5 rounded-2xl border outline-none focus:ring-2 focus:ring-[#F48B29] ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'} disabled:opacity-50`}
             />
           </div>
 
-          <button className="w-full bg-[#1D265A] text-white font-bold py-4 rounded-2xl shadow-xl shadow-[#1D265A]/20 hover:bg-[#2A367A] transition-all mt-4">
-            Add to GyanSync
+          <button 
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-[#1D265A] text-white font-bold py-4 rounded-2xl shadow-xl shadow-[#1D265A]/20 hover:bg-[#2A367A] transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                Registering...
+              </>
+            ) : (
+              'Add to GyanSync'
+            )}
           </button>
         </form>
       </div>
