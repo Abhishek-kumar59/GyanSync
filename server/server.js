@@ -94,7 +94,30 @@ const auth = (req, res, next) => {
 // Protected route to get user data
 app.get('/api/auth/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    let user = await User.findById(req.user.id).select('-password');
+    
+    // Check if streak needs to be reset due to missed day
+    if (user.lastStudyDate) {
+      const lastStudyDate = new Date(user.lastStudyDate);
+      const today = new Date();
+      
+      lastStudyDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = Math.abs(today.getTime() - lastStudyDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // If more than 1 day gap, reset streak
+      if (diffDays > 1) {
+        console.log(`Resetting streak for user ${req.user.id} due to ${diffDays} day gap`);
+        user = await User.findByIdAndUpdate(
+          req.user.id,
+          { streak: 0 },
+          { new: true }
+        ).select('-password');
+      }
+    }
+    
     res.json({ user });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -183,11 +206,13 @@ app.put('/api/tasks/:id', auth, async (req, res) => {
     );
     if (!task) return res.status(404).json({ message: 'Task not found' });
     
-    // Handle streak logic when task is completed
-    if (completed && !task.completed) {
+    // Handle streak logic when task is completed (only when transitioning from false to true)
+    if (completed === true) {
       const user = await User.findById(req.user.id);
       const today = new Date().toISOString().split('T')[0];
       const lastStudyDate = user.lastStudyDate;
+      
+      console.log('Streak logic triggered:', { completed, lastStudyDate, today, userStreak: user.streak });
       
       // Only increment streak if this is the first task completion today
       if (lastStudyDate !== today) {
@@ -202,26 +227,34 @@ app.put('/api/tasks/:id', auth, async (req, res) => {
           lastDate.setHours(0, 0, 0, 0);
           todayDate.setHours(0, 0, 0, 0);
           
-          const diffTime = Math.abs(todayDate - lastDate);
+          const diffTime = Math.abs(todayDate.getTime() - lastDate.getTime());
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          console.log('Streak calculation:', { diffDays, lastDate, todayDate });
           
           if (diffDays === 1) {
             // Consecutive day - increment streak
             newStreak += 1;
+            console.log('Consecutive day - incrementing to:', newStreak);
           } else if (diffDays > 1) {
             // Gap in streak - reset to 1
             newStreak = 1;
+            console.log('Gap in streak - resetting to 1');
           }
         } else {
           // First time - start streak at 1
           newStreak = 1;
+          console.log('First task ever - starting streak at 1');
         }
         
         // Update user with new streak and today's date
+        console.log('Updating user streak to:', newStreak);
         await User.findByIdAndUpdate(req.user.id, {
           streak: newStreak,
           lastStudyDate: today
         });
+      } else {
+        console.log('Already studied today - not incrementing streak');
       }
     }
     
