@@ -213,6 +213,14 @@ const App: React.FC = () => {
     authService.getTasks().then(response => setTasks(response.tasks)).catch(console.error);
     authService.getSlots().then(response => setSlots(response.slots)).catch(console.error);
     authService.getFolders().then(response => setFolders(response.folders)).catch(console.error);
+    try {
+      const target = user.isAdmin ? '/admin' : '/';
+      if (typeof window !== 'undefined' && window.location.pathname !== target) {
+        window.history.pushState(null, '', target);
+      }
+    } catch (e) {
+      // ignore
+    }
   };
   
   const handleLogout = () => {
@@ -231,6 +239,9 @@ const App: React.FC = () => {
     setTasks([]);
     setSlots([]);
     setFolders([]);
+    try {
+      if (typeof window !== 'undefined') window.history.pushState(null, '', '/');
+    } catch (e) {}
   };
 
   // Track study session when on dashboard
@@ -456,7 +467,7 @@ const App: React.FC = () => {
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className={`absolute left-0 top-0 bottom-0 w-80 shadow-2xl animate-in slide-in-from-left duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+            <div className={`absolute left-0 top-0 bottom-0 w-80 shadow-2xl animate-in slide-in-from-left duration-300 overflow-y-auto ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
               <div className={`p-4 border-b flex justify-between items-center ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
                 <span className={`font-bold uppercase tracking-widest text-xs ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>Menu</span>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-400 hover:text-rose-500">

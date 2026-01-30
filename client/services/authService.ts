@@ -58,6 +58,13 @@ export const authService = {
   },
 
   logout() {
+    const token = localStorage.getItem('token');
+    if (token) {
+      // Call logout endpoint to clear lastActive
+      axios.post(`${API_URL}/auth/logout`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(err => console.error('Logout error:', err));
+    }
     localStorage.removeItem('token');
   },
 
@@ -260,6 +267,37 @@ export const authService = {
     const response = await axios.delete(`${API_URL}/admin/users/${userId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    return response.data;
+  },
+
+  async getActiveUsers(): Promise<{ activeNow: number }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/admin/active-users`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  },
+
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const response = await axios.post(`${API_URL}/auth/request-reset`, { email });
+    return response.data;
+  },
+
+  async resetPassword(token: string, newPassword: string, confirmPassword: string): Promise<{ message: string }> {
+    const response = await axios.post(`${API_URL}/auth/reset-password`, { 
+      token, 
+      newPassword, 
+      confirmPassword 
+    });
+    return response.data;
+  },
+
+  async changePassword(currentPassword: string, newPassword: string, confirmPassword: string): Promise<{ message: string }> {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/auth/change-password`, 
+      { currentPassword, newPassword, confirmPassword },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
     return response.data;
   }
 };

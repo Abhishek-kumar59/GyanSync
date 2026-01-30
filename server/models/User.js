@@ -15,6 +15,9 @@ const userSchema = new mongoose.Schema({
   totalStudyMinutes: { type: Number, default: 0 },
   bio: { type: String, default: 'Welcome to GyanSync! Update your profile to tell others about yourself.' },
   joinDate: { type: String, default: new Date().toISOString().split('T')[0] },
+  lastActive: { type: Date, default: null },
+  resetToken: { type: String, default: null },
+  resetTokenExpires: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

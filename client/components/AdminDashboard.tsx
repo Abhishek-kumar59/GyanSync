@@ -29,6 +29,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
     growth: '+0%',
     avgStreak: 0
   });
+  const [activeNow, setActiveNow] = useState(0);
   const [growthData, setGrowthData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,6 +53,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
     };
     fetchStats();
   }, [students.length]); // Refetch when students change
+
+  // Fetch active users count every 10 seconds
+  useEffect(() => {
+    const fetchActiveUsers = async () => {
+      try {
+        const data = await authService.getActiveUsers();
+        setActiveNow(data.activeNow);
+      } catch (error) {
+        console.error('Failed to fetch active users:', error);
+      }
+    };
+
+    // Fetch immediately
+    fetchActiveUsers();
+
+    // Set up interval to refresh every 10 seconds
+    const interval = setInterval(fetchActiveUsers, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredStudents = students.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -82,7 +103,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <AdminStatCard label="Total Students" value={stats.total} trend={stats.growth} icon={<Users className="text-[#1D265A]" />} darkMode={darkMode} />
-        <AdminStatCard label="Active Now" value={stats.active} trend="On track" icon={<ShieldCheck className="text-emerald-500" />} darkMode={darkMode} />
+        <AdminStatCard label="Active Now" value={activeNow} trend="Real-time" icon={<ShieldCheck className="text-emerald-500" />} darkMode={darkMode} />
         <AdminStatCard label="Avg. Study Streak" value={`${stats.avgStreak} Days`} trend="Top 10%" icon={<TrendingUp className="text-[#F48B29]" />} darkMode={darkMode} />
         <AdminStatCard label="Growth Rate" value="+4.2%" trend="Monthly" icon={<ShieldAlert className="text-rose-500" />} darkMode={darkMode} />
       </div>

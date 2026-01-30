@@ -5,6 +5,9 @@ import { getStudyAdvice } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+
+// KaTeX will be dynamically imported inside the component to ensure client-side execution.
 
 interface ChatOverlayProps {
   isOpen: boolean;
@@ -14,6 +17,23 @@ interface ChatOverlayProps {
 }
 
 export const ChatOverlay: React.FC<ChatOverlayProps> = ({ isOpen, onClose, darkMode }) => {
+  const [katexModule, setKatexModule] = useState<any | null>(null);
+
+  // Dynamically import KaTeX on client-side so Vite doesn't try to load it during SSR/build.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const mod = await import('katex');
+        if (!mounted) return;
+        setKatexModule(mod);
+      } catch (e) {
+        // katex not installed or failed to load; math will be plain text
+        setKatexModule(null);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'model', content: "Hello! I'm your GyanSync study assistant. How can I help you today? Need help with a concept or organizing your schedule?" }
   ]);
@@ -81,6 +101,7 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({ isOpen, onClose, darkM
               }`}>
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
                   components={{
                     ul: ({node, ...props}) => <ul className="list-disc pl-4 my-2" {...props} />,
                     ol: ({node, ...props}) => <ol className="list-decimal pl-4 my-2" {...props} />,
@@ -99,7 +120,36 @@ export const ChatOverlay: React.FC<ChatOverlayProps> = ({ isOpen, onClose, darkM
                     td: ({node, ...props}) => <td className="px-3 py-2 whitespace-nowrap text-sm border-r last:border-r-0 border-slate-200 dark:border-slate-700" {...props} />,
                   }}
                 >
-                  {msg.content}
+                  {/*
+                    Preprocess content to render LaTeX math using KaTeX.
+                    Convert block math $$...$$ first, then inline $...$.
+                  */}
+                  {(() => {
+                    const content = msg.content as string;
+                    if (!katexModule) return content;
+                    try {
+                      let text = content;
+                      // Render block math $$...$$ first
+                      text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_m, expr) => {
+                        try {
+                          return katexModule.renderToString(expr.trim(), { displayMode: true, throwOnError: false });
+                        } catch (err) {
+                          return `<pre>${expr}</pre>`;
+                        }
+                      });
+                      // Render inline math $...$ (avoid matching $$)
+                      text = text.replace(/(?<!\$)\$([^\n$]+?)\$(?!\$)/g, (_m, expr) => {
+                        try {
+                          return katexModule.renderToString(expr.trim(), { displayMode: false, throwOnError: false });
+                        } catch (err) {
+                          return expr;
+                        }
+                      });
+                      return text;
+                    } catch (err) {
+                      return content;
+                    }
+                  })()}
                 </ReactMarkdown>
               </div>
             </div>

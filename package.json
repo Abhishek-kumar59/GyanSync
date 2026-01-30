@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "katex": "^0.16.28",
+    "rehype-raw": "^7.0.0"
+  }
+}

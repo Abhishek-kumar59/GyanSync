@@ -53,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onChatToggle, streak, isMobile
   };
 
   const content = (
-    <div className={`flex flex-col gap-8 h-full ${isMobile ? 'p-6' : ''}`}>
+    <div className={`flex flex-col gap-8 h-full overflow-y-auto ${isMobile ? 'p-6' : ''}`}>
       <nav className="flex flex-col gap-1">
         <NavItem 
           icon={<LayoutGrid size={20} />} 
@@ -173,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onChatToggle, streak, isMobile
   if (isMobile) return content;
 
   return (
-    <aside className={`w-72 border-r h-[calc(100vh-80px)] sticky top-20 p-6 flex flex-col hidden lg:flex transition-colors ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
+    <aside className={`w-72 border-r h-[calc(100vh-80px)] sticky top-20 p-6 flex flex-col hidden lg:flex overflow-y-auto overflow-x-hidden transition-colors ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
       {content}
     </aside>
   );

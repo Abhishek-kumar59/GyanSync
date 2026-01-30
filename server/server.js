@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const multer = require('multer');
 require('dotenv').config();
 
+const { sendPasswordResetEmail, sendWelcomeEmail } = require('./utils/emailService');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -50,11 +52,15 @@ app.post('/api/auth/signup', async (req, res) => {
     const user = new User({ name, email, password, joinDate: new Date().toISOString().split('T')[0] });
     await user.save();
 
+    // Send welcome email
+    await sendWelcomeEmail(email, name);
+
     const token = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '7d' });
     const userResponse = user.toObject();
     delete userResponse.password;
     res.json({ token, user: userResponse });
   } catch (err) {
+    console.error('Signup error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -67,6 +73,10 @@ app.post('/api/auth/login', async (req, res) => {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+    // Update lastActive timestamp
+    user.lastActive = new Date();
+    await user.save();
 
     const token = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '7d' });
     const userResponse = user.toObject();
@@ -96,6 +106,10 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     let user = await User.findById(req.user.id).select('-password');
     
+    // Update lastActive on every API call
+    user.lastActive = new Date();
+    await user.save();
+    
     // Check if streak needs to be reset due to missed day
     if (user.lastStudyDate) {
       const lastStudyDate = new Date(user.lastStudyDate);
@@ -120,6 +134,129 @@ app.get('/api/auth/me', auth, async (req, res) => {
     
     res.json({ user });
   } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Logout endpoint - clear lastActive by setting it to null or a past date
+app.post('/api/auth/logout', auth, async (req, res) => {
+  try {
+    // Update user to clear lastActive
+    await User.findByIdAndUpdate(req.user.id, { lastActive: null });
+    res.json({ message: 'Logged out successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Request password reset - generates a reset token
+app.post('/api/auth/request-reset', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      // Don't reveal if email exists in DB for security
+      return res.json({ message: 'If an account with this email exists, you will receive a password reset link shortly.' });
+    }
+
+    // Generate a random reset token
+    const resetToken = require('crypto').randomBytes(32).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Save token and expiry to user
+    user.resetToken = resetToken;
+    user.resetTokenExpires = resetTokenExpires;
+    await user.save();
+
+    // Send email with reset link
+    const emailResult = await sendPasswordResetEmail(email, resetToken);
+    
+    if (emailResult.success) {
+      res.json({ 
+        message: 'Password reset link has been sent to your email. Please check your inbox and follow the link to reset your password.'
+      });
+    } else {
+      // Email failed but token is saved - user can still use the app's reset flow
+      console.error('Email sending failed but token saved:', emailResult.error);
+      res.json({ 
+        message: 'If an account with this email exists, you will receive a password reset link shortly.'
+      });
+    }
+  } catch (err) {
+    console.error('Reset request error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// Reset password with token
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword, confirmPassword } = req.body;
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    // Find user with valid reset token
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.resetToken = null;
+    user.resetTokenExpires = null;
+    await user.save();
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('Password reset error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Change password for logged-in users
+app.post('/api/auth/change-password', auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    console.error('Change password error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -710,6 +847,29 @@ app.get('/api/admin/statistics', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Admin statistics error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get currently active users (logged in within last 5 minutes)
+app.get('/api/admin/active-users', auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    const adminUser = await User.findById(req.user.id);
+    if (!adminUser || !adminUser.isAdmin) {
+      return res.status(403).json({ message: 'Unauthorized - Admin access required' });
+    }
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const activeUsers = await User.countDocuments({
+      lastActive: { $gte: fiveMinutesAgo }
+    });
+
+    res.json({
+      activeNow: activeUsers
+    });
+  } catch (err) {
+    console.error('Active users error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
