@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Bell, Shield, User, Monitor, Globe, ChevronRight, Check, X, Moon, Sun } from 'lucide-react';
+import { Shield, User, Monitor, ChevronRight, Check, X, Moon, Sun } from 'lucide-react';
 import { UserProfile } from '../types';
 import { authService } from '../services/authService';
 
@@ -122,12 +122,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, onUpdatePro
               darkMode={darkMode}
             />
           )}
-          <SettingItem label="Language & Region" sub="English (US)" darkMode={darkMode} />
-        </SettingSection>
-
-        <SettingSection title="Notifications" icon={<Bell size={18} />} darkMode={darkMode}>
-          <SettingItem label="Email Notifications" sub="Get updates on your study streak" toggle active darkMode={darkMode} />
-          <SettingItem label="Desktop Notifications" sub="Focus timer alerts" toggle darkMode={darkMode} />
         </SettingSection>
 
         <SettingSection title="Security" icon={<Shield size={18} />} darkMode={darkMode}>
@@ -204,7 +198,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, onUpdatePro
                 onClick={() => setIsChangingPassword(true)}
                 darkMode={darkMode}
               />
-              <SettingItem label="Two-Factor Authentication" sub="Enabled via Authenticator app" active darkMode={darkMode} />
             </>
           )}
           <SettingItem 
@@ -216,7 +209,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, onUpdatePro
             iconOverride={darkMode ? <Moon size={16} className="text-indigo-400" /> : <Sun size={16} className="text-amber-500" />}
             darkMode={darkMode}
           />
-          <SettingItem label="Accessibility" sub="High contrast & font sizing" darkMode={darkMode} />
         </SettingSection>
       </div>
     </div>

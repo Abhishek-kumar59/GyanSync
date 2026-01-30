@@ -61,12 +61,33 @@ const INITIAL_STUDENTS: Student[] = [
 ];
 
 export type AppView = 'dashboard' | 'profile' | 'settings' | 'tasks' | 'schedule' | 'statistics' | 'admin';
+export type AuthViewType = 'login' | 'signup' | 'forgot' | 'reset';
+
+// Helper to determine view from URL path
+const getViewFromPath = (path: string): AppView => {
+  if (path === '/admin') return 'admin';
+  if (path === '/profile') return 'profile';
+  if (path === '/settings') return 'settings';
+  if (path === '/tasks') return 'tasks';
+  if (path === '/schedule') return 'schedule';
+  if (path === '/statistics') return 'statistics';
+  return 'dashboard';
+};
+
+const getAuthViewFromPath = (path: string): AuthViewType => {
+  if (path === '/signup') return 'signup';
+  if (path === '/forgot') return 'forgot';
+  if (path.startsWith('/reset')) return 'reset';
+  return 'login';
+};
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('token'));
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('isAdmin') === 'true');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<AppView>('dashboard');
+  const [currentView, setCurrentView] = useState<AppView>(() => getViewFromPath(window.location.pathname));
+  const [currentAuthView, setCurrentAuthView] = useState<AuthViewType>(() => getAuthViewFromPath(window.location.pathname));
+  const [isLoading, setIsLoading] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
@@ -111,6 +132,50 @@ const App: React.FC = () => {
     }
   }, [darkMode]);
 
+  // Sync URL with currentView
+  useEffect(() => {
+    if (isAuthenticated) {
+      const pathMap: Record<AppView, string> = {
+        dashboard: '/',
+        admin: '/admin',
+        profile: '/profile',
+        settings: '/settings',
+        tasks: '/tasks',
+        schedule: '/schedule',
+        statistics: '/statistics'
+      };
+      const path = pathMap[currentView];
+      if (path && window.location.pathname !== path) {
+        window.history.pushState(null, '', path);
+      }
+    } else {
+      if (currentAuthView === 'reset') return;
+      
+      const pathMap: Record<string, string> = {
+        login: '/',
+        signup: '/signup',
+        forgot: '/forgot'
+      };
+      const path = pathMap[currentAuthView];
+      if (path && window.location.pathname !== path) {
+        window.history.pushState(null, '', path);
+      }
+    }
+  }, [currentView, currentAuthView, isAuthenticated]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isAuthenticated) {
+        setCurrentView(getViewFromPath(window.location.pathname));
+      } else {
+        setCurrentAuthView(getAuthViewFromPath(window.location.pathname));
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isAuthenticated]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -118,7 +183,15 @@ const App: React.FC = () => {
         .then(user => {
           setCurrentUser(user);
           setIsAdmin(user.isAdmin);
-          setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
+          
+          // Validate current view against permissions
+          const intendedView = getViewFromPath(window.location.pathname);
+          if (intendedView === 'admin' && !user.isAdmin) {
+            setCurrentView('dashboard');
+          } else {
+            setCurrentView(intendedView);
+          }
+
           // Set userProfile from user data
           setUserProfile({
             name: user.name,
@@ -141,7 +214,12 @@ const App: React.FC = () => {
         .catch(() => {
           localStorage.removeItem('token');
           setIsAuthenticated(false);
+        })
+        .finally(() => {
+          setIsLoading(false);
         });
+    } else {
+      setIsLoading(false);
     }
   }, []);
 
@@ -213,14 +291,6 @@ const App: React.FC = () => {
     authService.getTasks().then(response => setTasks(response.tasks)).catch(console.error);
     authService.getSlots().then(response => setSlots(response.slots)).catch(console.error);
     authService.getFolders().then(response => setFolders(response.folders)).catch(console.error);
-    try {
-      const target = user.isAdmin ? '/admin' : '/';
-      if (typeof window !== 'undefined' && window.location.pathname !== target) {
-        window.history.pushState(null, '', target);
-      }
-    } catch (e) {
-      // ignore
-    }
   };
   
   const handleLogout = () => {
@@ -236,6 +306,7 @@ const App: React.FC = () => {
     setIsAdmin(false);
     setShowLogoutModal(false);
     setCurrentView('dashboard');
+    setCurrentAuthView('login');
     setTasks([]);
     setSlots([]);
     setFolders([]);
@@ -431,11 +502,28 @@ const App: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated) {
-    return <AuthView onLogin={handleLogin} />;
+  const completedCount = tasks.filter(t => t.completed).length;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] dark:bg-slate-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400 font-medium">Loading GyanSync...</p>
+        </div>
+      </div>
+    );
   }
 
-  const completedCount = tasks.filter(t => t.completed).length;
+  if (!isAuthenticated) {
+    return (
+      <AuthView 
+        onLogin={handleLogin} 
+        currentView={currentAuthView} 
+        onNavigate={setCurrentAuthView} 
+      />
+    );
+  }
 
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-[#F8FAFC] text-slate-900'}`}>
