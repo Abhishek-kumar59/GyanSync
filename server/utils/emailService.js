@@ -3,6 +3,11 @@ const nodemailer = require('nodemailer');
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const API_URL = `${BASE_URL}`;
 
+
+// Use CLIENT_URL from env, or fallback to localhost for development
+const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+
 // Configure your email service here
 // For Gmail: https://support.google.com/accounts/answer/185833
 // For other services, update the config accordingly
@@ -29,7 +34,9 @@ transporter.verify((error, success) => {
 
 const sendPasswordResetEmail = async (email, resetToken) => {
   try {
-    const resetUrl = `${API_URL}/reset?token=${resetToken}`;
+    // const resetUrl = `${API_URL}/reset?token=${resetToken}`;
+    
+    const resetUrl = `${clientUrl}/reset?token=${resetToken}`;
     
     const mailOptions = {
       // from: process.env.EMAIL_USER,
@@ -168,7 +175,7 @@ const getWelcomeTemplate = (name) => {
             </div>
             
             <center>
-              <a href="${API_URL}" class="cta-button">Start Studying Now</a>
+              <a href="${clientUrl}" class="cta-button">Start Studying Now</a>
             </center>
             
             <p>If you have any questions or need assistance, don't hesitate to reach out to our support team.</p>
