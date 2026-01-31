@@ -2,8 +2,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 // KaTeX CSS for math rendering (requires `katex` to be installed)
-import 'katex/dist/katex.min.css';
+// import 'katex/dist/katex.min.css';
+
 import App from './App';
+
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
