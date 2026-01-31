@@ -13,6 +13,7 @@ interface StatisticsViewProps {
 
 export const StatisticsView: React.FC<StatisticsViewProps> = ({ tasks, streak, slots, darkMode }) => {
   const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
+  const [studyMetric, setStudyMetric] = useState<'total' | 'daily' | 'weekly'>('total');
   const [statistics, setStatistics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +41,21 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ tasks, streak, s
   const successRate = statistics?.successRate || (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
   const totalStudyHours = statistics?.totalHours || '0.0';
   const chartData = statistics?.chartData || [];
+
+  let displayStudyHours = totalStudyHours;
+  let studyHoursLabel = 'Hours';
+
+  if (studyMetric === 'daily') {
+    const days = timeRange === 'week' ? 7 : 30;
+    const val = parseFloat(totalStudyHours);
+    displayStudyHours = (val / days).toFixed(1);
+    studyHoursLabel = 'Hrs/Day';
+  } else if (studyMetric === 'weekly') {
+    const weeks = timeRange === 'week' ? 1 : 4.28;
+    const val = parseFloat(totalStudyHours);
+    displayStudyHours = (val / weeks).toFixed(1);
+    studyHoursLabel = 'Hrs/Week';
+  }
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -105,15 +121,23 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ tasks, streak, s
           <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
             <Clock size={80} className={darkMode ? 'text-indigo-500' : 'text-indigo-500'} />
           </div>
-          <div className="flex items-center gap-4 mb-4">
-            <div className={`p-3 rounded-2xl ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-500'}`}>
-              <Clock size={24} />
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-2xl ${darkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-500'}`}>
+                <Clock size={24} />
+              </div>
+              <span className={`text-sm font-bold uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Est. Study Time</span>
             </div>
-            <span className={`text-sm font-bold uppercase tracking-widest ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Est. Study Time</span>
+            <button 
+              onClick={() => setStudyMetric(prev => prev === 'total' ? 'daily' : prev === 'daily' ? 'weekly' : 'total')}
+              className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-xl border transition-all ${darkMode ? 'bg-slate-900/50 border-slate-600 text-slate-300 hover:bg-slate-700' : 'bg-white/50 border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >
+              {studyMetric === 'total' ? 'Total' : studyMetric === 'daily' ? 'Daily' : 'Weekly'}
+            </button>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-5xl font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>{totalStudyHours}</span>
-            <span className={`text-lg font-bold ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Hours</span>
+          <div className="flex items-baseline gap-2 relative z-10">
+            <span className={`text-5xl font-black ${darkMode ? 'text-white' : 'text-slate-900'}`}>{displayStudyHours}</span>
+            <span className={`text-lg font-bold ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{studyHoursLabel}</span>
           </div>
         </div>
       </div>
