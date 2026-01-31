@@ -17,7 +17,7 @@ import { ScheduleView } from './components/ScheduleView';
 import { StatisticsView } from './components/StatisticsView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { authService, User } from './services/authService';
-import { Task, StudySlot, Folder, UserProfile, Student, FileAsset } from './types';
+import { Task, StudySlot, Folder, UserProfile, Student } from './types';
 
 const INITIAL_TASKS: Task[] = [
   { id: '1', title: 'Complete Calculus III Assignment', completed: false, priority: 'high', category: 'Math' },
@@ -519,8 +519,6 @@ const App: React.FC = () => {
     return (
       <AuthView 
         onLogin={handleLogin} 
-        currentView={currentAuthView} 
-        onNavigate={setCurrentAuthView} 
       />
     );
   }
