@@ -657,6 +657,7 @@ const App: React.FC = () => {
               onAddStudent={handleAddStudent} 
               onDeleteStudent={handleDeleteStudent} 
               darkMode={darkMode} 
+              onToggleDarkMode={() => setDarkMode(!darkMode)}
             />
           )}
 

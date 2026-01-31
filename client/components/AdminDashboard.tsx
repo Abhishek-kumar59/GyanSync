@@ -6,7 +6,7 @@ import {
 import { 
   Users, TrendingUp, UserPlus, Trash2, Search, 
   ShieldCheck, Calendar, Eye, EyeOff, AlertTriangle, X,
-  Shield, ShieldAlert 
+  Shield, ShieldAlert, Moon, Sun
 } from 'lucide-react';
 import { Student } from '../types';
 import { authService } from '../services/authService';
@@ -16,9 +16,10 @@ interface AdminDashboardProps {
   onAddStudent: (s: Student) => void;
   onDeleteStudent: (id: string) => void;
   darkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddStudent, onDeleteStudent, darkMode }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddStudent, onDeleteStudent, darkMode, onToggleDarkMode }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState(false);
@@ -136,12 +137,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
           <h2 className={`text-4xl font-black tracking-tight ${darkMode ? 'text-white' : 'text-[#1D265A]'}`}>System Overview</h2>
           <p className={`mt-2 text-lg font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Monitor GyanSync user base and student engagement.</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="bg-[#1D265A] text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-[#2A367A] transition-all shadow-xl shadow-[#1D265A]/20 active:scale-95"
-        >
-          <UserPlus size={20} /> Register Student
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={onToggleDarkMode}
+            className={`p-4 rounded-2xl transition-all border ${darkMode ? 'bg-slate-800 border-slate-700 text-indigo-400 hover:bg-slate-700' : 'bg-white border-slate-100 text-amber-500 hover:bg-slate-50'} shadow-sm`}
+            title="Toggle Dark Mode"
+          >
+            {darkMode ? <Moon size={20} /> : <Sun size={20} />}
+          </button>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="bg-[#1D265A] text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-[#2A367A] transition-all shadow-xl shadow-[#1D265A]/20 active:scale-95"
+          >
+            <UserPlus size={20} /> Register Student
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
