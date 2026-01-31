@@ -1,5 +1,8 @@
 const nodemailer = require('nodemailer');
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = `${BASE_URL}`;
+
 // Configure your email service here
 // For Gmail: https://support.google.com/accounts/answer/185833
 // For other services, update the config accordingly
@@ -26,10 +29,11 @@ transporter.verify((error, success) => {
 
 const sendPasswordResetEmail = async (email, resetToken) => {
   try {
-    const resetUrl = `http://localhost:3000/reset?token=${resetToken}`;
+    const resetUrl = `${API_URL}/reset?token=${resetToken}`;
     
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      // from: process.env.EMAIL_USER,
+      from: 'Gyan-Sync',
       to: email,
       subject: 'GyanSync - Password Reset Request',
       html: getPasswordResetTemplate(resetUrl)
@@ -101,7 +105,8 @@ const getPasswordResetTemplate = (resetUrl) => {
 const sendWelcomeEmail = async (email, name) => {
   try {
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      // from: process.env.EMAIL_USER,
+      from: 'Gyan-Sync',
       to: email,
       subject: 'Welcome to GyanSync - Your Account is Ready!',
       html: getWelcomeTemplate(name)
@@ -163,7 +168,7 @@ const getWelcomeTemplate = (name) => {
             </div>
             
             <center>
-              <a href="http://localhost:3000" class="cta-button">Start Studying Now</a>
+              <a href="${API_URL}" class="cta-button">Start Studying Now</a>
             </center>
             
             <p>If you have any questions or need assistance, don't hesitate to reach out to our support team.</p>
