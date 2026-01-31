@@ -196,7 +196,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ profile, tasks = [], o
                     </div>
                     <div>
                       <p className={`text-xs font-bold uppercase tracking-tighter ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Joined</p>
-                      <p className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{profile?.joinDate || profile?.createdAt ? format(new Date(profile.joinDate || profile.createdAt), "MMMM d, yyyy") : "—"}</p>
+                      <p className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{profile?.joinDate ? format(new Date(profile.joinDate), "MMMM d, yyyy") : "—"}</p>
                       {/* <p>{console.log(profile)}</p> */}
                     </div>
                   </div>

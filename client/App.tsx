@@ -360,8 +360,9 @@ const App: React.FC = () => {
       if (sessionStartTime && isAuthenticated) {
         // Send beacon to track session end (works even on page close)
         const data = JSON.stringify({ startTime: sessionStartTime });
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         navigator.sendBeacon(
-          'http://localhost:5000/api/study-sessions/end',
+          `${apiUrl}/api/study-sessions/end`,
           new Blob([data], { type: 'application/json' })
         );
       }
