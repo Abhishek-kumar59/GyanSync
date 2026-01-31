@@ -22,6 +22,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, onUpdatePro
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [logoutOthersLoading, setLogoutOthersLoading] = useState(false);
+  const [logoutOthersMessage, setLogoutOthersMessage] = useState('');
 
   const handleSaveGeneral = () => {
     onUpdateProfile({ name, email });
@@ -67,6 +70,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, onUpdatePro
       setPasswordError(err.response?.data?.message || 'Failed to change password');
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const handleLogoutOtherSessions = async () => {
+    setLogoutOthersLoading(true);
+    setLogoutOthersMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/auth/logout-others', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to log out other sessions');
+
+      if (data.token) localStorage.setItem('token', data.token);
+
+      setLogoutOthersMessage('Successfully logged out of other devices.');
+      setTimeout(() => {
+        setShowLogoutConfirm(false);
+        setLogoutOthersMessage('');
+      }, 2000);
+    } catch (err: any) {
+      setLogoutOthersMessage(err.message || 'Failed to log out other sessions.');
+    } finally {
+      setLogoutOthersLoading(false);
     }
   };
 
@@ -200,6 +233,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, onUpdatePro
               />
             </>
           )}
+        {showLogoutConfirm ? (
+          <div className={`p-6 space-y-4 animate-in fade-in duration-200 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+            {logoutOthersMessage && (
+              <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${logoutOthersMessage.includes('Success') ? (darkMode ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-700') : (darkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-700')}`}>
+                {logoutOthersMessage.includes('Success') ? <Check size={16} /> : <X size={16} />} {logoutOthersMessage}
+              </div>
+            )}
+            {!logoutOthersMessage.includes('Success') && (
+              <div className={`p-3 rounded-xl text-sm ${darkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-700'}`}>
+                Are you sure? This will sign you out from all other devices and browsers.
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <button 
+                onClick={handleLogoutOtherSessions}
+                disabled={logoutOthersLoading}
+                className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Monitor size={14} /> {logoutOthersLoading ? 'Processing...' : 'Confirm Logout'}
+              </button>
+              <button 
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  setLogoutOthersMessage('');
+                }}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                <X size={14} /> Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <SettingItem 
+            label="Active Sessions" 
+            sub="Log out from all other devices except this one" 
+            onClick={() => setShowLogoutConfirm(true)}
+            darkMode={darkMode}
+            iconOverride={<Monitor size={16} className="text-indigo-500" />}
+          />
+        )}
           <SettingItem 
             label="Dark Mode" 
             sub={darkMode ? "Deep navy interface enabled" : "Clean light interface enabled"} 

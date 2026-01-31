@@ -315,6 +315,22 @@ const App: React.FC = () => {
     } catch (e) {}
   };
 
+  // Session heartbeat to detect remote logout (e.g. from another device)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const checkSession = setInterval(() => {
+      authService.getCurrentUser()
+        .catch(err => {
+          if (err.response && err.response.status === 401) {
+            handleLogout();
+          }
+        });
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(checkSession);
+  }, [isAuthenticated]);
+
   // Track study session when on dashboard
   useEffect(() => {
     if (isAuthenticated && currentView === 'dashboard' && !sessionStartTime) {

@@ -88,12 +88,24 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Middleware to verify JWT
-const auth = (req, res, next) => {
+const auth = async (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Check if token is invalidated (issued before tokensValidAfter)
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(401).json({ message: 'User not found' });
+
+    if (user.tokensValidAfter) {
+      const tokenIssuedAt = decoded.iat * 1000; // JWT iat is in seconds
+      if (tokenIssuedAt < new Date(user.tokensValidAfter).getTime()) {
+        return res.status(401).json({ message: 'Session expired' });
+      }
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
@@ -144,6 +156,26 @@ app.post('/api/auth/logout', auth, async (req, res) => {
     // Update user to clear lastActive
     await User.findByIdAndUpdate(req.user.id, { lastActive: null });
     res.json({ message: 'Logged out successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Logout from all other sessions
+app.post('/api/auth/logout-others', auth, async (req, res) => {
+  try {
+    // Invalidate all tokens issued before now
+    const now = new Date();
+    await User.findByIdAndUpdate(req.user.id, { tokensValidAfter: now });
+    
+    // Wait 1s to ensure new token iat is > tokensValidAfter (handling second truncation)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Issue a new token for the current session so the user stays logged in
+    const user = await User.findById(req.user.id);
+    const newToken = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    
+    res.json({ message: 'Logged out of other sessions', token: newToken });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
