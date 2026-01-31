@@ -23,6 +23,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -74,6 +75,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
     return () => clearInterval(interval);
   }, []);
 
+  const { calculatedGrowthRate, chartData, availableYears } = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // 1. Growth Rate (Month over Month)
+    const thisMonthCount = students.filter(s => {
+      const d = new Date(s.joinDate);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).length;
+
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthCount = students.filter(s => {
+      const d = new Date(s.joinDate);
+      return d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear();
+    }).length;
+
+    let rate = 0;
+    if (lastMonthCount === 0) {
+      rate = thisMonthCount > 0 ? 100 : 0;
+    } else {
+      rate = ((thisMonthCount - lastMonthCount) / lastMonthCount) * 100;
+    }
+    const formattedRate = (rate > 0 ? '+' : '') + rate.toFixed(1) + '%';
+
+    // 2. Chart Data
+    const uniqueYears = new Set(students.map(s => new Date(s.joinDate).getFullYear()));
+    uniqueYears.add(currentYear);
+    const years = Array.from(uniqueYears).sort((a, b) => b - a);
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const data = months.map((month, index) => {
+      const count = students.filter(s => {
+        const d = new Date(s.joinDate);
+        return d.getMonth() === index && d.getFullYear() === selectedYear;
+      }).length;
+      return { name: month, users: count };
+    });
+
+    return { calculatedGrowthRate: formattedRate, chartData: data, availableYears: years };
+  }, [students, selectedYear]);
+
   const filteredStudents = students.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     s.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -105,18 +148,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
         <AdminStatCard label="Total Students" value={stats.total} trend={stats.growth} icon={<Users className="text-[#1D265A]" />} darkMode={darkMode} />
         <AdminStatCard label="Active Now" value={activeNow} trend="Real-time" icon={<ShieldCheck className="text-emerald-500" />} darkMode={darkMode} />
         <AdminStatCard label="Avg. Study Streak" value={`${stats.avgStreak} Days`} trend="Top 10%" icon={<TrendingUp className="text-[#F48B29]" />} darkMode={darkMode} />
-        <AdminStatCard label="Growth Rate" value="+4.2%" trend="Monthly" icon={<ShieldAlert className="text-rose-500" />} darkMode={darkMode} />
+        <AdminStatCard label="Growth Rate" value={calculatedGrowthRate} trend="Monthly" icon={<ShieldAlert className="text-rose-500" />} darkMode={darkMode} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className={`lg:col-span-8 p-8 rounded-[2.5rem] border shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
           <div className="flex items-center justify-between mb-8">
             <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-[#1D265A]'}`}>User Base Growth</h3>
-            <div className={`p-2 rounded-xl text-xs font-bold ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>2024 Performance</div>
+            <select 
+              value={selectedYear} 
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className={`p-2 rounded-xl text-xs font-bold outline-none cursor-pointer ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-50 text-slate-500'}`}
+            >
+              {availableYears.map(year => (
+                <option key={year} value={year}>{year} Performance</option>
+              ))}
+            </select>
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={growthData}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#334155' : '#f1f5f9'} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} />
                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} />
