@@ -1,9 +1,5 @@
 const nodemailer = require('nodemailer');
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const API_URL = `${BASE_URL}`;
-
-
 // Use CLIENT_URL from env, or fallback to localhost for development
 const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
@@ -29,14 +25,14 @@ transporter.verify((error, success) => {
     console.error('Make sure EMAIL_USER and EMAIL_PASSWORD are set in .env');
   } else {
     console.log('✅ Email service is ready to send emails');
+    console.log('🔗 Client URL configured as:', clientUrl);
   }
 });
 
 const sendPasswordResetEmail = async (email, resetToken) => {
   try {
-    // const resetUrl = `${API_URL}/reset?token=${resetToken}`;
-    
     const resetUrl = `${clientUrl}/reset?token=${resetToken}`;
+    console.log(`📧 Sending reset email with link: ${resetUrl}`);
     
     const mailOptions = {
       // from: process.env.EMAIL_USER,
