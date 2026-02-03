@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { 
-  Users, TrendingUp, UserPlus, Trash2, Search, 
+  Users, TrendingUp, UserPlus, Trash2, Search, ChevronLeft, ChevronRight,
   ShieldCheck, Calendar, Eye, EyeOff, AlertTriangle, X,
   Shield, ShieldAlert, Moon, Sun
 } from 'lucide-react';
@@ -12,19 +12,29 @@ import { Student } from '../types';
 import { authService } from '../services/authService';
 
 interface AdminDashboardProps {
-  students: Student[];
-  onAddStudent: (s: Student) => void;
-  onDeleteStudent: (id: string) => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddStudent, onDeleteStudent, darkMode, onToggleDarkMode }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ darkMode, onToggleDarkMode }) => {
+  const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  });
+
+  const [isStudentsLoading, setIsStudentsLoading] = useState(true);
+  const [studentError, setStudentError] = useState<string | null>(null);
+
+  // For stats cards
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -33,7 +43,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
   });
   const [activeNow, setActiveNow] = useState(0);
   const [growthData, setGrowthData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
+
+  // Debounce search term to avoid excessive API calls while typing
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setPagination(p => ({ ...p, page: 1 })); // Reset to first page on new search
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
+
+  const fetchStudents = async () => {
+    setIsStudentsLoading(true);
+    setStudentError(null);
+    try {
+      // NOTE: This assumes your authService.getAdminUsers function is updated
+      // to accept pagination and search parameters, like:
+      // getAdminUsers({ page, limit, search })
+      const data = await authService.getAdminUsers({ page: pagination.page, limit: pagination.limit, search: debouncedSearchTerm });
+      
+      setStudents(data.users.map((user: any) => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar || `https://picsum.photos/seed/${user.name.split(' ')[0]}/150/150`,
+        banner: user.banner || '',
+        major: user.major || 'Not Set',
+        location: user.location || 'Not Set',
+        streak: user.streak || 0,
+        bio: user.bio || 'GyanSync User',
+        passwordHash: 'hashed',
+        joinDate: user.joinDate ? new Date(user.joinDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        status: 'active'
+      })));
+      setPagination(prev => ({
+        ...prev,
+        total: data.total,
+        totalPages: data.totalPages,
+      }));
+    } catch (error: any) {
+      console.error('Failed to fetch admin users:', error);
+      setStudentError(error.message || 'Could not fetch students. The server might be down.');
+    } finally {
+      setIsStudentsLoading(false);
+    }
+  };
 
   // Fetch admin statistics on mount
   useEffect(() => {
@@ -50,11 +108,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
       } catch (error) {
         console.error('Failed to fetch admin statistics:', error);
       } finally {
-        setIsLoading(false);
+        setIsStatsLoading(false);
       }
     };
     fetchStats();
-  }, [students.length]); // Refetch when students change
+  }, []);
+
+  // Fetch students when page or search term changes
+  useEffect(() => {
+    fetchStudents();
+  }, [pagination.page, debouncedSearchTerm]);
 
   // Fetch active users count every 10 seconds
   useEffect(() => {
@@ -76,52 +139,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
     return () => clearInterval(interval);
   }, []);
 
-  const { calculatedGrowthRate, chartData, availableYears } = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    // 1. Growth Rate (Month over Month)
-    const thisMonthCount = students.filter(s => {
-      const d = new Date(s.joinDate);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    }).length;
-
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthCount = students.filter(s => {
-      const d = new Date(s.joinDate);
-      return d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear();
-    }).length;
-
-    let rate = 0;
-    if (lastMonthCount === 0) {
-      rate = thisMonthCount > 0 ? 100 : 0;
-    } else {
-      rate = ((thisMonthCount - lastMonthCount) / lastMonthCount) * 100;
-    }
-    const formattedRate = (rate > 0 ? '+' : '') + rate.toFixed(1) + '%';
-
-    // 2. Chart Data
-    const uniqueYears = new Set(students.map(s => new Date(s.joinDate).getFullYear()));
-    uniqueYears.add(currentYear);
-    const years = Array.from(uniqueYears).sort((a, b) => b - a);
-
+  const { chartData, availableYears } = useMemo(() => {
+    // Chart data is now correctly derived from the fetched growthData,
+    // not the small, paginated `students` array.
+    const years = growthData.length > 0 
+      ? Array.from(new Set(growthData.map(d => d.year))).sort((a, b) => b - a)
+      : [new Date().getFullYear()];
+    
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const data = months.map((month, index) => {
-      const count = students.filter(s => {
-        const d = new Date(s.joinDate);
-        return d.getMonth() === index && d.getFullYear() === selectedYear;
-      }).length;
-      return { name: month, users: count };
+      const monthData = growthData.find(d => d.year === selectedYear && d.month === index + 1);
+      return { name: month, users: monthData ? monthData.count : 0 };
     });
 
-    return { calculatedGrowthRate: formattedRate, chartData: data, availableYears: years };
-  }, [students, selectedYear]);
+    return { chartData: data, availableYears: years };
+  }, [growthData, selectedYear]);
 
-  const filteredStudents = students.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleAddStudent = async (newStudentData: any) => {
+    // After adding, refetch stats and the current page of students to show the new user
+    await fetchStudents();
+    try {
+      const data = await authService.getAdminStatistics();
+      setStats({
+        total: data.totalStudents,
+        active: data.activeStudents,
+        growth: data.growthRate,
+        avgStreak: data.avgStreak
+      });
+    } catch (error) {
+      console.error('Failed to refetch admin statistics after add:', error);
+    }
+  };
+
+  const handleDeleteStudent = async (id: string) => {
+    try {
+      await authService.deleteUser(id);
+      // After deleting, refetch data.
+      // If it was the last item on a page, go to the previous page.
+      if (students.length === 1 && pagination.page > 1) {
+        setPagination(p => ({ ...p, page: p.page - 1 }));
+      } else {
+        await fetchStudents();
+      }
+      // Also refetch overall stats
+      const data = await authService.getAdminStatistics();
+      setStats({
+        total: data.totalStudents,
+        active: data.activeStudents,
+        growth: data.growthRate,
+        avgStreak: data.avgStreak
+      });
+    } catch (error) {
+      console.error('Failed to delete student:', error);
+    }
+  };
 
   const togglePassword = (id: string) => {
     setShowPasswords(prev => ({ ...prev, [id]: !prev[id] }));
@@ -139,7 +210,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={onToggleDarkMode}
+            onClick={() => onToggleDarkMode()}
             className={`p-4 rounded-2xl transition-all border ${darkMode ? 'bg-slate-800 border-slate-700 text-indigo-400 hover:bg-slate-700' : 'bg-white border-slate-100 text-amber-500 hover:bg-slate-50'} shadow-sm`}
             title="Toggle Dark Mode"
           >
@@ -154,12 +225,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <AdminStatCard label="Total Students" value={stats.total} trend={stats.growth} icon={<Users className="text-[#1D265A]" />} darkMode={darkMode} />
-        <AdminStatCard label="Active Now" value={activeNow} trend="Real-time" icon={<ShieldCheck className="text-emerald-500" />} darkMode={darkMode} />
-        <AdminStatCard label="Avg. Study Streak" value={`${stats.avgStreak} Days`} trend="Top 10%" icon={<TrendingUp className="text-[#F48B29]" />} darkMode={darkMode} />
-        <AdminStatCard label="Growth Rate" value={calculatedGrowthRate} trend="Monthly" icon={<ShieldAlert className="text-rose-500" />} darkMode={darkMode} />
-      </div>
+      {(() => {
+        const growthIsNegative = stats.growth.startsWith('-');
+        const growthTrendColor = growthIsNegative ? 'text-rose-500 bg-rose-500/10' : 'text-emerald-500 bg-emerald-500/10';
+        const growthIcon = growthIsNegative ? <ShieldAlert className="text-rose-500" /> : <TrendingUp className="text-emerald-500" />;
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <AdminStatCard label="Total Students" value={stats.total} trend={stats.growth} icon={<Users className="text-[#1D265A]" />} darkMode={darkMode} trendColor={growthTrendColor} />
+            <AdminStatCard label="Active Now" value={activeNow} trend="Real-time" icon={<ShieldCheck className="text-emerald-500" />} darkMode={darkMode} trendColor="text-emerald-500 bg-emerald-500/10" />
+            <AdminStatCard label="Avg. Study Streak" value={`${stats.avgStreak.toFixed(1)} Days`} trend="Top 10%" icon={<TrendingUp className="text-[#F48B29]" />} darkMode={darkMode} trendColor="text-amber-500 bg-amber-500/10" />
+            <AdminStatCard label="Growth Rate" value={stats.growth} trend="Monthly" icon={growthIcon} darkMode={darkMode} trendColor={growthTrendColor} />
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className={`lg:col-span-8 p-8 rounded-[2.5rem] border shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
@@ -234,8 +313,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
                 <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${darkMode ? 'divide-slate-700' : 'divide-slate-50'}`}>
-              {filteredStudents.map((student) => (
+            {/* Only render body if not loading and students exist */}
+            {!isStudentsLoading && students.length > 0 && (
+              <tbody className={`divide-y ${darkMode ? 'divide-slate-700' : 'divide-slate-50'}`}>
+              {students.map((student) => (
                 <tr key={student.id} className="group hover:bg-slate-500/5 transition-colors">
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
@@ -277,21 +358,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
                   </td>
                 </tr>
               ))}
-            </tbody>
+              </tbody>
+            )}
           </table>
-          {filteredStudents.length === 0 && (
+          {/* Loading State */}
+          {isStudentsLoading && (
+            <div className="py-20 text-center text-slate-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-t-transparent mx-auto mb-4"></div>
+              <p className="font-bold">Loading Students...</p>
+            </div>
+          )}
+          {/* Error State */}
+          {!isStudentsLoading && studentError && (
+            <div className="py-20 text-center text-rose-500">
+              <AlertTriangle size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="font-bold">Failed to load students.</p>
+              <p className="text-sm">{studentError}</p>
+            </div>
+          )}
+          {/* Empty State */}
+          {!isStudentsLoading && students.length === 0 && !studentError && (
             <div className="py-20 text-center text-slate-500">
               <Search size={48} className="mx-auto mb-4 opacity-10" />
               <p className="font-bold">No GyanSync users matched your search.</p>
             </div>
           )}
         </div>
+        {/* Pagination Controls */}
+        {pagination.totalPages > 1 && !isStudentsLoading && (
+          <div className={`p-4 border-t flex items-center justify-between text-sm ${darkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+            <button 
+              onClick={() => setPagination(p => ({...p, page: p.page - 1}))}
+              disabled={pagination.page === 1}
+              className="px-3 py-1 rounded-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-500/10"
+            >
+              <ChevronLeft size={16} /> Previous
+            </button>
+            <span className="font-medium text-slate-500">
+              Page {pagination.page} of {pagination.totalPages}
+            </span>
+            <button 
+              onClick={() => setPagination(p => ({...p, page: p.page + 1}))}
+              disabled={pagination.page === pagination.totalPages}
+              className="px-3 py-1 rounded-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-500/10"
+            >
+              Next <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {showAddModal && (
         <RegisterStudentModal 
           onClose={() => setShowAddModal(false)} 
-          onSave={onAddStudent} 
+          onSave={handleAddStudent} 
           darkMode={darkMode} 
         />
       )}
@@ -300,7 +420,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
         <AdminConfirmationModal 
           title="Remove GyanSync User?"
           message="This will permanently remove the student and all their synced data from GyanSync. This action cannot be undone."
-          onConfirm={() => { onDeleteStudent(confirmDelete); setConfirmDelete(null); }}
+          onConfirm={() => { handleDeleteStudent(confirmDelete!); setConfirmDelete(null); }}
           onCancel={() => setConfirmDelete(null)}
           darkMode={darkMode}
         />
@@ -309,11 +429,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, onAddS
   );
 };
 
-const AdminStatCard = ({ label, value, trend, icon, darkMode }: { label: string, value: string | number, trend: string, icon: React.ReactNode, darkMode: boolean }) => (
+const AdminStatCard = ({ label, value, trend, icon, darkMode, trendColor }: { label: string, value: string | number, trend: string, icon: React.ReactNode, darkMode: boolean, trendColor?: string }) => (
   <div className={`p-6 rounded-[2rem] border shadow-sm transition-all hover:translate-y-[-4px] ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
     <div className="flex justify-between items-start mb-4">
       <div className={`p-4 rounded-2xl ${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>{icon}</div>
-      <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full uppercase">{trend}</span>
+      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${trendColor || 'text-slate-500 bg-slate-500/10'}`}>{trend}</span>
     </div>
     <div>
       <p className={`text-[10px] font-bold uppercase tracking-widest ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{label}</p>
@@ -324,7 +444,7 @@ const AdminStatCard = ({ label, value, trend, icon, darkMode }: { label: string,
 
 const AdminConfirmationModal = ({ title, message, onConfirm, onCancel, darkMode }: any) => (
   <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
-    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onCancel} />
+    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => onCancel()} />
     <div className={`relative w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-100'}`}>
       <div className="flex flex-col items-center text-center">
         <div className={`p-4 rounded-3xl text-rose-500 mb-6 ${darkMode ? 'bg-rose-500/10' : 'bg-rose-50'}`}>
@@ -333,8 +453,8 @@ const AdminConfirmationModal = ({ title, message, onConfirm, onCancel, darkMode 
         <h3 className={`text-2xl font-black mb-2 ${darkMode ? 'text-white' : 'text-[#1D265A]'}`}>{title}</h3>
         <p className={`text-sm font-medium mb-8 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{message}</p>
         <div className="flex w-full gap-3">
-          <button onClick={onCancel} className={`flex-1 font-bold py-4 rounded-2xl transition-all ${darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Cancel</button>
-          <button onClick={onConfirm} className="flex-1 bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-rose-100 hover:bg-rose-600 transition-all">Remove</button>
+          <button onClick={() => onCancel()} className={`flex-1 font-bold py-4 rounded-2xl transition-all ${darkMode ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Cancel</button>
+          <button onClick={() => onConfirm()} className="flex-1 bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-rose-100 hover:bg-rose-600 transition-all">Remove</button>
         </div>
       </div>
     </div>
@@ -352,26 +472,9 @@ const RegisterStudentModal = ({ onClose, onSave, darkMode }: any) => {
     setIsLoading(true);
 
     try {
-      // Call backend API to register student
       const newUser = await authService.registerStudent(data.name, data.email, data.password, data.major);
-      
-      // Convert to Student format for display
-      const newStudent: Student = {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        avatar: newUser.avatar || `https://picsum.photos/seed/${newUser.name.split(' ')[0]}/150/150`,
-        banner: newUser.banner || '',
-        major: newUser.major,
-        location: newUser.location || 'Not Set',
-        streak: newUser.streak || 0,
-        bio: newUser.bio || 'Welcome to GyanSync!',
-        passwordHash: 'hashed', // Don't display real hash
-        joinDate: newUser.joinDate || new Date().toISOString().split('T')[0],
-        status: 'active'
-      };
-
-      onSave(newStudent);
+      // The onSave function now just triggers a refetch in the parent component.
+      onSave(newUser);
       onClose();
     } catch (err: any) {
       console.error('Registration error:', err);
@@ -382,11 +485,11 @@ const RegisterStudentModal = ({ onClose, onSave, darkMode }: any) => {
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => onClose()} />
       <div className={`relative w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl transition-colors ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border-slate-100'}`}>
         <div className="flex items-center justify-between mb-8">
           <h3 className={`text-2xl font-black ${darkMode ? 'text-white' : 'text-[#1D265A]'}`}>Register GyanSync Student</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-400" disabled={isLoading}><X size={24} /></button>
+          <button onClick={() => onClose()} className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-400" disabled={isLoading}><X size={24} /></button>
         </div>
 
         {error && (

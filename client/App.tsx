@@ -54,12 +54,6 @@ const INITIAL_USER_PROFILE: UserProfile = {
   bio: 'Computer Science student passionate about AI and distributed systems. I love optimizing my study flow and tackling complex algorithms during my late-night coding sessions.'
 };
 
-const INITIAL_STUDENTS: Student[] = [
-  { id: 's1', name: 'Alex Johnson', email: 'alex.j@university.edu', avatar: 'https://picsum.photos/seed/student/150/150', banner: '', major: 'Computer Science', location: 'San Francisco', streak: 21, bio: '...', passwordHash: '$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/zB6TKV7.o9D5D.1T3H0.9yN2', joinDate: '2024-10-15', status: 'active' },
-  { id: 's2', name: 'Sarah Miller', email: 'sarah.m@college.edu', avatar: 'https://picsum.photos/seed/sarah/150/150', banner: '', major: 'Biochemistry', location: 'Boston', streak: 15, bio: '...', passwordHash: '$2a$12$K8j/aIPz0gi.URNNX3kh2OPST9/zB6TKV7.o9D5D.1T3H0.2xK5', joinDate: '2024-11-02', status: 'active' },
-  { id: 's3', name: 'Michael Chen', email: 'm.chen@tech.edu', avatar: 'https://picsum.photos/seed/michael/150/150', banner: '', major: 'Electrical Engineering', location: 'Seattle', streak: 45, bio: '...', passwordHash: '$2a$12$L7p/zIPz0gi.URNNX3kh2OPST9/zB6TKV7.o9D5D.1T3H0.5mP3', joinDate: '2024-09-20', status: 'active' },
-];
-
 export type AppView = 'dashboard' | 'profile' | 'settings' | 'tasks' | 'schedule' | 'statistics' | 'admin';
 export type AuthViewType = 'login' | 'signup' | 'forgot' | 'reset';
 
@@ -107,26 +101,24 @@ const App: React.FC = () => {
     }
   });
 
-  const [students, setStudents] = useState<Student[]>(() => {
-    try {
-      const saved = localStorage.getItem('students');
-      return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
-    } catch (error) {
-      console.error('Error parsing students from localStorage:', error);
-      return INITIAL_STUDENTS;
-    }
-  });
-
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('userProfile', JSON.stringify(userProfile));
+    try {
+      localStorage.setItem('userProfile', JSON.stringify(userProfile));
+    } catch (error) {
+      if (error.name === 'QuotaExceededError') {
+        console.warn('localStorage quota exceeded, clearing localStorage');
+        localStorage.clear();
+        localStorage.setItem('userProfile', JSON.stringify(userProfile));
+      } else {
+        console.error('Error saving userProfile to localStorage:', error);
+      }
+    }
   }, [userProfile]);
 
-  useEffect(() => {
-    localStorage.setItem('students', JSON.stringify(students));
-  }, [students]);
+
 
   useEffect(() => {
     localStorage.setItem('isAuth', isAuthenticated.toString());
@@ -233,31 +225,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch students/users for admin panel
-  useEffect(() => {
-    if (isAdmin && isAuthenticated) {
-      authService.getAdminUsers()
-        .then(data => {
-          const students = data.users.map((user: any) => ({
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            avatar: user.avatar || `https://picsum.photos/seed/${user.name.split(' ')[0]}/150/150`,
-            banner: user.banner || '',
-            major: user.major || 'Not Set',
-            location: user.location || 'Not Set',
-            streak: user.streak || 0,
-            bio: user.bio || 'GyanSync User',
-            passwordHash: 'hashed',
-            joinDate: user.joinDate || new Date().toISOString().split('T')[0],
-            status: 'active'
-          }));
-          setStudents(students);
-        })
-        .catch(err => console.error('Failed to fetch admin users:', err));
-    }
-  }, [isAdmin, isAuthenticated]);
-
   const handleLogin = async (user: User, asAdmin: boolean = false) => {
     setIsAuthenticated(true);
     setCurrentUser(user);
@@ -330,6 +297,12 @@ const App: React.FC = () => {
     if (!isAuthenticated) return;
 
     const checkSession = setInterval(() => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        handleLogout();
+        return;
+      }
+
       authService.getCurrentUser()
         .catch(err => {
           if (err.response && err.response.status === 401) {
@@ -370,7 +343,7 @@ const App: React.FC = () => {
       if (sessionStartTime && isAuthenticated) {
         // Send beacon to track session end (works even on page close)
         const data = JSON.stringify({ startTime: sessionStartTime });
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
         navigator.sendBeacon(
           `${apiUrl}/api/study-sessions/end`,
           new Blob([data], { type: 'application/json' })
@@ -515,20 +488,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Student Management (Admin)
-  const handleAddStudent = (student: Student) => {
-    setStudents(prev => [...prev, student]);
-  };
-
-  const handleDeleteStudent = async (id: string) => {
-    try {
-      await authService.deleteUser(id);
-      setStudents(prev => prev.filter(s => s.id !== id));
-    } catch (error) {
-      console.error('Failed to delete student:', error);
-    }
-  };
-
   const completedCount = tasks.filter(t => t.completed).length;
 
   if (isLoading) {
@@ -664,10 +623,7 @@ const App: React.FC = () => {
 
           {currentView === 'admin' && isAdmin && (
             <AdminDashboard 
-              students={students} 
-              onAddStudent={handleAddStudent} 
-              onDeleteStudent={handleDeleteStudent} 
-              darkMode={darkMode} 
+              darkMode={darkMode}
               onToggleDarkMode={() => setDarkMode(!darkMode)}
             />
           )}
@@ -719,7 +675,7 @@ const App: React.FC = () => {
       
       {showLogoutModal && (
         <LogoutModal 
-          onConfirm={handleLogout} 
+          onConfirm={() => handleLogout()} 
           onCancel={() => setShowLogoutModal(false)} 
           darkMode={darkMode}
         />

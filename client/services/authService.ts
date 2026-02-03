@@ -32,7 +32,7 @@ export interface AuthResponse {
 
 export const authService = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await axios.post(`${API_URL}/auth/login`, { email, password });
+    const response = await axios.post(`${API_URL}/auth/login`, { email, password }, { timeout: 10000 });
     return response.data;
   },
 
@@ -246,7 +246,8 @@ export const authService = {
   async getAdminUsers(): Promise<any> {
     const token = localStorage.getItem('token');
     const response = await axios.get(`${API_URL}/admin/users`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 60000
     });
     return response.data;
   },
