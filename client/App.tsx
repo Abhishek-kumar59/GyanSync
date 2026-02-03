@@ -226,11 +226,14 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = async (user: User, asAdmin: boolean = false) => {
+    // Clear any existing session state to prevent race conditions
+    setSessionStartTime(null);
+
     setIsAuthenticated(true);
     setCurrentUser(user);
     setIsAdmin(user.isAdmin);
     setCurrentView(user.isAdmin ? 'admin' : 'dashboard');
-    
+
     // Set userProfile from user data
     setUserProfile({
       name: user.name,
@@ -249,14 +252,14 @@ const App: React.FC = () => {
     // Streak Logic: Check if streak needs reset on login
     let currentStreak = user.streak || 0;
     const lastStudyDate = user.lastStudyDate;
-    
+
     if (lastStudyDate) {
       const last = new Date(lastStudyDate);
       const today = new Date();
       // Calculate difference in days ignoring time
       const diffTime = Math.abs(today.setHours(0,0,0,0) - last.setHours(0,0,0,0));
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-      
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
       if (diffDays > 1) {
         currentStreak = 0;
         authService.updateProfile({ streak: 0 }).catch(console.error);
