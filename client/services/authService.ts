@@ -4,7 +4,7 @@ import { UserProfile, Task, StudySlot } from '../types';
 // const API_URL = 'http://localhost:5000/api';
 
 // Use the environment variable if available, otherwise fallback to localhost
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const API_URL = `${BASE_URL}/api`;
 
 
@@ -243,10 +243,11 @@ export const authService = {
   },
 
   // ===== ADMIN METHODS =====
-  async getAdminUsers(): Promise<any> {
+  async getAdminUsers(params?: { page: number; limit: number; search: string }): Promise<any> {
     const token = localStorage.getItem('token');
     const response = await axios.get(`${API_URL}/admin/users`, {
       headers: { Authorization: `Bearer ${token}` },
+      params,
       timeout: 60000
     });
     return response.data;
