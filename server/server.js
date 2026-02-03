@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const multer = require('multer');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const { sendPasswordResetEmail, sendWelcomeEmail } = require('./utils/emailService');
@@ -13,6 +14,7 @@ const PORT = process.env.PORT || 5000;
 // app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
 
 
 app.use(cors({
@@ -69,6 +71,14 @@ app.post('/api/auth/signup', async (req, res) => {
     await sendWelcomeEmail(email, name);
 
     const token = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
     const userResponse = user.toObject();
     delete userResponse.password;
     res.json({ token, user: userResponse });
@@ -92,6 +102,14 @@ app.post('/api/auth/login', async (req, res) => {
     await user.save();
 
     const token = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
     const userResponse = user.toObject();
     delete userResponse.password;
     res.json({ token, user: userResponse });
@@ -102,7 +120,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Middleware to verify JWT
 const auth = async (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
+  const token = req.header('Authorization')?.replace('Bearer ', '') || req.cookies?.token;
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   try {
@@ -166,6 +184,12 @@ app.get('/api/auth/me', auth, async (req, res) => {
 // Logout endpoint - clear lastActive by setting it to null or a past date
 app.post('/api/auth/logout', auth, async (req, res) => {
   try {
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    });
+
     // Update user to clear lastActive
     await User.findByIdAndUpdate(req.user.id, { lastActive: null });
     res.json({ message: 'Logged out successfully' });
@@ -188,6 +212,13 @@ app.post('/api/auth/logout-others', auth, async (req, res) => {
     const user = await User.findById(req.user.id);
     const newToken = jwt.sign({ id: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '7d' });
     
+    res.cookie('token', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
     res.json({ message: 'Logged out of other sessions', token: newToken });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
