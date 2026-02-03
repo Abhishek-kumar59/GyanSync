@@ -98,13 +98,23 @@ const App: React.FC = () => {
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
 
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('userProfile');
-    return saved ? JSON.parse(saved) : INITIAL_USER_PROFILE;
+    try {
+      const saved = localStorage.getItem('userProfile');
+      return saved ? JSON.parse(saved) : INITIAL_USER_PROFILE;
+    } catch (error) {
+      console.error('Error parsing userProfile from localStorage:', error);
+      return INITIAL_USER_PROFILE;
+    }
   });
 
   const [students, setStudents] = useState<Student[]>(() => {
-    const saved = localStorage.getItem('students');
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+    try {
+      const saved = localStorage.getItem('students');
+      return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+    } catch (error) {
+      console.error('Error parsing students from localStorage:', error);
+      return INITIAL_STUDENTS;
+    }
   });
 
   const [isChatOpen, setIsChatOpen] = useState(false);

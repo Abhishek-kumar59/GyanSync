@@ -4,7 +4,7 @@ import { UserProfile, Task, StudySlot } from '../types';
 // const API_URL = 'http://localhost:5000/api';
 
 // Use the environment variable if available, otherwise fallback to localhost
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API_URL = `${BASE_URL}/api`;
 
 
