@@ -247,8 +247,7 @@ export const authService = {
     const token = localStorage.getItem('token');
     const response = await axios.get(`${API_URL}/admin/users`, {
       headers: { Authorization: `Bearer ${token}` },
-      params,
-      timeout: 60000
+      params
     });
     return response.data;
   },
